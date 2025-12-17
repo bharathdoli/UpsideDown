@@ -1,0 +1,495 @@
+import { useState, useEffect } from "react";
+import { Search, Users, BookOpen, Clock, Plus, MessageCircle, Loader2, Edit, Trash2, HelpCircle, GraduationCap } from "lucide-react";
+import DashboardNavbar from "@/components/layout/DashboardNavbar";
+import Footer from "@/components/layout/Footer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
+
+const subjects = [
+  "All Subjects",
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Computer Science",
+  "Electronics",
+  "Mechanical",
+  "Civil",
+  "Biology",
+];
+
+interface StudyRequest {
+  id: string;
+  subject: string;
+  description: string | null;
+  is_active: boolean | null;
+  request_type: string | null;
+  created_at: string;
+  user_id: string;
+  college: string;
+}
+
+const StudyBuddy = () => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("All Subjects");
+  const [activeTab, setActiveTab] = useState("need_help");
+  const [requests, setRequests] = useState<StudyRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<StudyRequest | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [formData, setFormData] = useState({
+    subject: "",
+    description: "",
+    request_type: "need_help",
+  });
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("study_buddy_requests")
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Error fetching requests", description: error.message, variant: "destructive" });
+    } else {
+      setRequests(data || []);
+    }
+    setLoading(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      toast({ title: "Please login to create a request", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    if (!formData.subject) {
+      toast({ title: "Please select a subject", variant: "destructive" });
+      return;
+    }
+
+    setSubmitting(true);
+
+    const requestData = {
+      subject: formData.subject,
+      description: formData.description || null,
+      request_type: formData.request_type,
+    };
+
+    if (editingRequest) {
+      const { error } = await supabase.from("study_buddy_requests").update(requestData).eq("id", editingRequest.id);
+      if (error) {
+        toast({ title: "Error updating request", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Request updated successfully!" });
+      }
+    } else {
+      const { error } = await supabase.from("study_buddy_requests").insert({
+        ...requestData,
+        user_id: user.id,
+        college: "default",
+      });
+      if (error) {
+        toast({ title: "Error creating request", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Study buddy request created!" });
+      }
+    }
+
+    setIsDialogOpen(false);
+    resetForm();
+    fetchRequests();
+    setSubmitting(false);
+  };
+
+  const resetForm = () => {
+    setFormData({ subject: "", description: "", request_type: "need_help" });
+    setEditingRequest(null);
+  };
+
+  const handleEdit = (request: StudyRequest) => {
+    setEditingRequest(request);
+    setFormData({
+      subject: request.subject,
+      description: request.description || "",
+      request_type: request.request_type || "need_help",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (requestId: string) => {
+    if (!confirm("Are you sure you want to delete this request?")) return;
+    
+    const { error } = await supabase.from("study_buddy_requests").delete().eq("id", requestId);
+    if (error) {
+      toast({ title: "Error deleting request", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Request deleted successfully!" });
+      fetchRequests();
+    }
+  };
+
+  const handleDeactivate = async (requestId: string) => {
+    const { error } = await supabase.from("study_buddy_requests").update({ is_active: false }).eq("id", requestId);
+    if (error) {
+      toast({ title: "Error deactivating request", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Request deactivated!" });
+      fetchRequests();
+    }
+  };
+
+  const filteredRequests = requests.filter(req => {
+    const matchesSearch = 
+      req.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (req.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    const matchesSubject = selectedSubject === "All Subjects" || req.subject === selectedSubject;
+    const matchesType = req.request_type === activeTab || !req.request_type;
+    return matchesSearch && matchesSubject && matchesType;
+  });
+
+  const needHelpCount = requests.filter(r => r.request_type === "need_help" || !r.request_type).length;
+  const canHelpCount = requests.filter(r => r.request_type === "can_help").length;
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <div className="min-h-screen bg-background noise-overlay">
+      <DashboardNavbar college={null} onCollegeChange={() => {}} />
+      
+      <main className="pt-24 pb-16">
+        <div className="container mx-auto px-4">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl md:text-5xl font-stranger text-foreground mb-4 flicker">
+              Study <span className="text-primary">Buddy</span>
+            </h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Find study partners or offer your expertise. Learning is better together!
+            </p>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <div className="glass-dark rounded-xl p-4 text-center border border-border/30">
+              <HelpCircle className="w-8 h-8 text-warning mx-auto mb-2" />
+              <p className="text-2xl font-bold text-warning">{needHelpCount}</p>
+              <p className="text-sm text-muted-foreground">Need Help</p>
+            </div>
+            <div className="glass-dark rounded-xl p-4 text-center border border-border/30">
+              <GraduationCap className="w-8 h-8 text-green-400 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-green-400">{canHelpCount}</p>
+              <p className="text-sm text-muted-foreground">Can Help</p>
+            </div>
+            <div className="glass-dark rounded-xl p-4 text-center border border-border/30 col-span-2 md:col-span-1">
+              <Users className="w-8 h-8 text-primary mx-auto mb-2" />
+              <p className="text-2xl font-bold text-primary">{requests.length}</p>
+              <p className="text-sm text-muted-foreground">Active Requests</p>
+            </div>
+          </div>
+
+          {/* Create Button */}
+          <div className="flex justify-center gap-4 mb-8">
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button 
+                  className="bg-warning hover:bg-warning/90 text-warning-foreground box-glow gap-2" 
+                  size="lg"
+                  onClick={() => setFormData(prev => ({ ...prev, request_type: "need_help" }))}
+                >
+                  <HelpCircle className="w-5 h-5" />
+                  I Need Help
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="glass-dark border-border/50">
+                <DialogHeader>
+                  <DialogTitle className="font-stranger text-foreground">
+                    {editingRequest ? "Edit Request" : formData.request_type === "can_help" ? "Offer Your Help" : "Find a Study Buddy"}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <Label>Request Type</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant={formData.request_type === "need_help" ? "default" : "outline"}
+                        className={formData.request_type === "need_help" ? "bg-warning text-warning-foreground" : "border-border/50"}
+                        onClick={() => setFormData(prev => ({ ...prev, request_type: "need_help" }))}
+                      >
+                        <HelpCircle className="w-4 h-4 mr-2" />
+                        I Need Help
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={formData.request_type === "can_help" ? "default" : "outline"}
+                        className={formData.request_type === "can_help" ? "bg-green-600 text-white" : "border-border/50"}
+                        onClick={() => setFormData(prev => ({ ...prev, request_type: "can_help" }))}
+                      >
+                        <GraduationCap className="w-4 h-4 mr-2" />
+                        I Can Help
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="subject">Subject *</Label>
+                    <Select value={formData.subject} onValueChange={(v) => setFormData({ ...formData, subject: v })}>
+                      <SelectTrigger className="bg-background/50 border-border/50">
+                        <SelectValue placeholder="Select subject" />
+                      </SelectTrigger>
+                      <SelectContent className="glass-dark border-border/50">
+                        {subjects.filter(s => s !== "All Subjects").map(sub => (
+                          <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="description">
+                      {formData.request_type === "can_help" 
+                        ? "What topics can you help with?" 
+                        : "What do you need help with?"}
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder={formData.request_type === "can_help" 
+                        ? "Describe what topics you're proficient in and can teach..." 
+                        : "Describe what topics you want to study together..."}
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className={`w-full ${formData.request_type === "can_help" ? "bg-green-600 hover:bg-green-700" : "bg-warning hover:bg-warning/90"}`}
+                    disabled={submitting}
+                  >
+                    {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {editingRequest ? "Updating..." : "Creating..."}</> : editingRequest ? "Update Request" : "Create Request"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Button 
+              className="bg-green-600 hover:bg-green-700 text-white box-glow gap-2" 
+              size="lg"
+              onClick={() => {
+                setFormData(prev => ({ ...prev, request_type: "can_help" }));
+                setIsDialogOpen(true);
+              }}
+            >
+              <GraduationCap className="w-5 h-5" />
+              I Can Help
+            </Button>
+          </div>
+
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 glass-dark">
+              <TabsTrigger value="need_help" className="data-[state=active]:bg-warning data-[state=active]:text-warning-foreground">
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Need Help ({needHelpCount})
+              </TabsTrigger>
+              <TabsTrigger value="can_help" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">
+                <GraduationCap className="w-4 h-4 mr-2" />
+                Can Help ({canHelpCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Search & Filters */}
+          <div className="glass-dark rounded-xl p-4 mb-8 border border-border/30">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="Search study requests..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-background/50 border-border/50 focus:border-primary"
+                />
+              </div>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger className="w-full md:w-48 bg-background/50 border-border/50">
+                  <SelectValue placeholder="Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass-dark border-border/50">
+                  {subjects.map(sub => (
+                    <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Study Requests Grid */}
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredRequests.map(req => (
+                <div 
+                  key={req.id}
+                  className={`glass-dark rounded-xl p-6 border transition-all group ${
+                    req.request_type === "can_help" 
+                      ? "border-green-500/30 hover:border-green-500/50" 
+                      : "border-warning/30 hover:border-warning/50"
+                  }`}
+                >
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl border ${
+                      req.request_type === "can_help"
+                        ? "bg-green-500/10 border-green-500/30"
+                        : "bg-warning/10 border-warning/30"
+                    }`}>
+                      {req.request_type === "can_help" ? "🎓" : "📚"}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {req.subject}
+                        </h3>
+                        {user?.id === req.user_id && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="glass-dark border-border/50">
+                              <DropdownMenuItem onClick={() => handleEdit(req)}>
+                                <Edit className="w-4 h-4 mr-2" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDeactivate(req.id)}>
+                                <Clock className="w-4 h-4 mr-2" /> Deactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDelete(req.id)} className="text-destructive">
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {req.request_type === "can_help" ? "Ready to teach" : "Looking for study partner"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {req.description && (
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                      {req.description}
+                    </p>
+                  )}
+
+                  <div className="flex items-center gap-2 mb-4">
+                    <Badge variant="outline" className={
+                      req.request_type === "can_help"
+                        ? "border-green-500/50 text-green-400"
+                        : "border-warning/50 text-warning"
+                    }>
+                      {req.subject}
+                    </Badge>
+                    <Badge className={
+                      req.request_type === "can_help"
+                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                        : "bg-warning/20 text-warning border border-warning/30"
+                    }>
+                      {req.request_type === "can_help" ? "Can Help" : "Need Help"}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {formatDate(req.created_at)}
+                    </span>
+                  </div>
+
+                  <Button className={`w-full gap-1 ${
+                    req.request_type === "can_help"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                  }`}>
+                    <MessageCircle className="w-4 h-4" />
+                    Connect
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && filteredRequests.length === 0 && (
+            <div className="text-center py-16">
+              <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-xl text-foreground mb-2">No {activeTab === "can_help" ? "tutors" : "requests"} found</h3>
+              <p className="text-muted-foreground">Be the first to {activeTab === "can_help" ? "offer help" : "create a study buddy request"}!</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+};
+
+export default StudyBuddy;
