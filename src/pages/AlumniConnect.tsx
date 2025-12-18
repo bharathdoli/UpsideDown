@@ -56,6 +56,7 @@ interface Alumni {
   college: string;
   user_id: string;
   created_at: string;
+  industry: string | null;
 }
 
 const AlumniConnect = () => {
@@ -66,6 +67,7 @@ const AlumniConnect = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingAlumni, setEditingAlumni] = useState<Alumni | null>(null);
+  const [college, setCollege] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -77,17 +79,49 @@ const AlumniConnect = () => {
     bio: "",
     linkedin_url: "",
     email: "",
+    industry: "",
   });
 
   useEffect(() => {
-    fetchAlumni();
-  }, []);
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (college) {
+      fetchAlumni();
+    }
+  }, [college]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (data?.college) {
+      setCollege(data.college);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  const handleCollegeChange = (newCollege: string) => {
+    setCollege(newCollege);
+  };
 
   const fetchAlumni = async () => {
+    if (!college) return;
+    
     setLoading(true);
     const { data, error } = await supabase
       .from("alumni")
       .select("*")
+      .eq("college", college)
       .order("graduation_year", { ascending: false });
 
     if (error) {
@@ -126,6 +160,7 @@ const AlumniConnect = () => {
       bio: formData.bio || null,
       linkedin_url: formData.linkedin_url || null,
       email: formData.email || null,
+      industry: formData.industry || null,
     };
 
     if (editingAlumni) {
@@ -136,10 +171,16 @@ const AlumniConnect = () => {
         toast({ title: "Alumni profile updated!" });
       }
     } else {
+      if (!college) {
+        toast({ title: "Please select a college first", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from("alumni").insert({
         ...alumniData,
         user_id: user.id,
-        college: "default",
+        college: college,
       });
       if (error) {
         toast({ title: "Error creating profile", description: error.message, variant: "destructive" });
@@ -155,7 +196,7 @@ const AlumniConnect = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", graduation_year: "", company: "", role: "", bio: "", linkedin_url: "", email: "" });
+    setFormData({ name: "", graduation_year: "", company: "", role: "", bio: "", linkedin_url: "", email: "", industry: "" });
     setEditingAlumni(null);
   };
 
@@ -169,6 +210,7 @@ const AlumniConnect = () => {
       bio: alum.bio || "",
       linkedin_url: alum.linkedin_url || "",
       email: alum.email || "",
+      industry: alum.industry || "",
     });
     setIsDialogOpen(true);
   };
@@ -196,12 +238,13 @@ const AlumniConnect = () => {
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.company?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
       (a.role?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-    return matchesSearch;
+    const matchesIndustry = selectedIndustry === "All Industries" || a.industry === selectedIndustry;
+    return matchesSearch && matchesIndustry;
   });
 
   return (
     <div className="min-h-screen bg-background noise-overlay">
-      <DashboardNavbar college={null} onCollegeChange={() => {}} />
+      <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
       
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
@@ -303,6 +346,19 @@ const AlumniConnect = () => {
                       placeholder="your@email.com"
                       className="bg-background/50 border-border/50"
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="industry">Industry</Label>
+                    <Select value={formData.industry} onValueChange={(v) => setFormData({ ...formData, industry: v })}>
+                      <SelectTrigger className="bg-background/50 border-border/50">
+                        <SelectValue placeholder="Select industry" />
+                      </SelectTrigger>
+                      <SelectContent className="glass-dark border-border/50">
+                        {industries.filter(i => i !== "All Industries").map(ind => (
+                          <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="linkedin_url">LinkedIn URL</Label>

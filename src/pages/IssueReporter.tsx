@@ -96,6 +96,7 @@ const IssueReporter = () => {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [college, setCollege] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -107,14 +108,45 @@ const IssueReporter = () => {
   });
 
   useEffect(() => {
-    fetchIssues();
-  }, []);
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (college) {
+      fetchIssues();
+    }
+  }, [college]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (data?.college) {
+      setCollege(data.college);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  const handleCollegeChange = (newCollege: string) => {
+    setCollege(newCollege);
+  };
 
   const fetchIssues = async () => {
+    if (!college) return;
+    
     setLoading(true);
     const { data, error } = await supabase
       .from("issues")
       .select("*")
+      .eq("college", college)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -179,13 +211,19 @@ const IssueReporter = () => {
         toast({ title: "Issue updated successfully!" });
       }
     } else {
+      if (!college) {
+        toast({ title: "Please select a college first", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from("issues").insert({
         title: formData.title,
         description: formData.description,
         category: formData.category,
         image_url: imageUrl,
         user_id: user.id,
-        college: "default",
+        college: college,
       });
 
       if (error) {
@@ -266,8 +304,8 @@ const IssueReporter = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background noise-overlay">
-      <DashboardNavbar college={null} onCollegeChange={() => {}} />
+    <div id="issue-reporter" className="min-h-screen bg-background noise-overlay">
+      <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
       
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">

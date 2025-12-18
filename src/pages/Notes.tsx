@@ -27,13 +27,12 @@ import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 const subjects = ["All Subjects", "Computer Science", "Mathematics", "Electronics", "Physics", "Chemistry", "Mechanical", "Civil"];
-const semesters = ["All Semesters", "1", "2", "3", "4", "5", "6", "7", "8"];
 
 interface Note {
   id: string;
   title: string;
   subject: string;
-  semester: number | null;
+  branch?: string | null;
   description: string | null;
   file_url: string | null;
   created_at: string;
@@ -44,7 +43,7 @@ interface Note {
 const Notes = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
-  const [selectedSemester, setSelectedSemester] = useState("All Semesters");
+  const [selectedBranch, setSelectedBranch] = useState("All Branches");
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,13 +52,14 @@ const Notes = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     title: "",
     subject: "",
-    semester: "",
+    branch: "",
     description: "",
   });
 
@@ -74,8 +74,27 @@ const Notes = () => {
   useEffect(() => {
     if (college) {
       fetchNotes();
+      fetchBranches();
     }
   }, [college]);
+
+  const fetchBranches = async () => {
+    if (!college) return;
+    
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("branch")
+      .eq("college", college)
+      .not("branch", "is", null);
+
+    if (error) {
+      console.error("Error fetching branches:", error);
+      return;
+    }
+
+    const uniqueBranches = Array.from(new Set((data || []).map(p => p.branch).filter(Boolean) as string[])).sort();
+    setAvailableBranches(uniqueBranches);
+  };
 
   const fetchUserProfile = async () => {
     if (!user) return;
@@ -185,7 +204,7 @@ const Notes = () => {
       const { error } = await supabase.from("notes").update({
         title: formData.title,
         subject: formData.subject,
-        semester: formData.semester ? parseInt(formData.semester) : null,
+        branch: formData.branch || null,
         description: formData.description,
         file_url: fileUrl,
       }).eq("id", editingNote.id);
@@ -199,7 +218,7 @@ const Notes = () => {
       const { error } = await supabase.from("notes").insert({
         title: formData.title,
         subject: formData.subject,
-        semester: formData.semester ? parseInt(formData.semester) : null,
+        branch: formData.branch || null,
         description: formData.description,
         file_url: fileUrl,
         user_id: user.id,
@@ -214,7 +233,7 @@ const Notes = () => {
     }
 
     setIsDialogOpen(false);
-    setFormData({ title: "", subject: "", semester: "", description: "" });
+    setFormData({ title: "", subject: "", branch: "", description: "" });
     setSelectedFile(null);
     setEditingNote(null);
     fetchNotes();
@@ -226,7 +245,7 @@ const Notes = () => {
     setFormData({
       title: note.title,
       subject: note.subject,
-      semester: note.semester?.toString() || "",
+      branch: note.branch || "",
       description: note.description || "",
     });
     setIsDialogOpen(true);
@@ -248,8 +267,8 @@ const Notes = () => {
     const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          note.subject.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSubject = selectedSubject === "All Subjects" || note.subject === selectedSubject;
-    const matchesSemester = selectedSemester === "All Semesters" || note.semester?.toString() === selectedSemester;
-    return matchesSearch && matchesSubject && matchesSemester;
+    const matchesBranch = selectedBranch === "All Branches" || note.branch === selectedBranch;
+    return matchesSearch && matchesSubject && matchesBranch;
   });
 
   const formatDate = (dateString: string) => {
@@ -270,7 +289,7 @@ const Notes = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background noise">
+    <div id="notes" className="min-h-screen bg-background noise">
       <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
       
       <main className="pt-24 pb-16">
@@ -335,18 +354,24 @@ const Notes = () => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="border-border/50">
-                      {selectedSemester === "All Semesters" ? selectedSemester : `Sem ${selectedSemester}`}
+                      {selectedBranch}
                       <ChevronDown className="ml-2 w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="glass-dark border-border/50">
-                    {semesters.map((semester) => (
+                    <DropdownMenuItem
+                      onClick={() => setSelectedBranch("All Branches")}
+                      className="hover:bg-primary/10 cursor-pointer"
+                    >
+                      All Branches
+                    </DropdownMenuItem>
+                    {availableBranches.map((branch) => (
                       <DropdownMenuItem
-                        key={semester}
-                        onClick={() => setSelectedSemester(semester)}
+                        key={branch}
+                        onClick={() => setSelectedBranch(branch)}
                         className="hover:bg-primary/10 cursor-pointer"
                       >
-                        {semester === "All Semesters" ? semester : `Semester ${semester}`}
+                        {branch}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -356,7 +381,7 @@ const Notes = () => {
                   setIsDialogOpen(open);
                   if (!open) {
                     setEditingNote(null);
-                    setFormData({ title: "", subject: "", semester: "", description: "" });
+                    setFormData({ title: "", subject: "", branch: "", description: "" });
                     setSelectedFile(null);
                   }
                 }}>
@@ -399,16 +424,16 @@ const Notes = () => {
                           </select>
                         </div>
                         <div>
-                          <Label htmlFor="semester">Semester</Label>
+                          <Label htmlFor="branch">Branch</Label>
                           <select
-                            id="semester"
-                            value={formData.semester}
-                            onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                            id="branch"
+                            value={formData.branch}
+                            onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
                             className="w-full h-10 rounded-md border border-border/50 bg-background/50 px-3 text-sm"
                           >
-                            <option value="">Select semester</option>
-                            {semesters.filter(s => s !== "All Semesters").map(s => (
-                              <option key={s} value={s}>Semester {s}</option>
+                            <option value="">Select branch</option>
+                            {availableBranches.map(b => (
+                              <option key={b} value={b}>{b}</option>
                             ))}
                           </select>
                         </div>
@@ -511,7 +536,7 @@ const Notes = () => {
                           {note.title}
                         </CardTitle>
                         <CardDescription className="text-muted-foreground">
-                          {note.subject} {note.semester ? `• Sem ${note.semester}` : ""}
+                          {note.subject} {note.branch ? `• ${note.branch}` : ""}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>

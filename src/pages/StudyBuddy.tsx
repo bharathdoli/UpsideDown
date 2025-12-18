@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Users, BookOpen, Clock, Plus, MessageCircle, Loader2, Edit, Trash2, HelpCircle, GraduationCap } from "lucide-react";
+import { Search, Users, BookOpen, Clock, Plus, MessageCircle, Loader2, Edit, Trash2, HelpCircle, GraduationCap, Linkedin, Phone } from "lucide-react";
 import DashboardNavbar from "@/components/layout/DashboardNavbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,8 @@ interface StudyRequest {
   created_at: string;
   user_id: string;
   college: string;
+  phone_number: string | null;
+  linkedin_url: string | null;
 }
 
 const StudyBuddy = () => {
@@ -70,6 +72,9 @@ const StudyBuddy = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingRequest, setEditingRequest] = useState<StudyRequest | null>(null);
+  const [college, setCollege] = useState<string | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<StudyRequest | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -77,17 +82,50 @@ const StudyBuddy = () => {
     subject: "",
     description: "",
     request_type: "need_help",
+    phone_number: "",
+    linkedin_url: "",
   });
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (college) {
+      fetchRequests();
+    }
+  }, [college]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (data?.college) {
+      setCollege(data.college);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  const handleCollegeChange = (newCollege: string) => {
+    setCollege(newCollege);
+  };
 
   const fetchRequests = async () => {
+    if (!college) return;
+    
     setLoading(true);
     const { data, error } = await supabase
       .from("study_buddy_requests")
       .select("*")
+      .eq("college", college)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
@@ -118,6 +156,8 @@ const StudyBuddy = () => {
       subject: formData.subject,
       description: formData.description || null,
       request_type: formData.request_type,
+      phone_number: formData.phone_number || null,
+      linkedin_url: formData.linkedin_url || null,
     };
 
     if (editingRequest) {
@@ -128,10 +168,16 @@ const StudyBuddy = () => {
         toast({ title: "Request updated successfully!" });
       }
     } else {
+      if (!college) {
+        toast({ title: "Please select a college first", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from("study_buddy_requests").insert({
         ...requestData,
         user_id: user.id,
-        college: "default",
+        college: college,
       });
       if (error) {
         toast({ title: "Error creating request", description: error.message, variant: "destructive" });
@@ -147,7 +193,7 @@ const StudyBuddy = () => {
   };
 
   const resetForm = () => {
-    setFormData({ subject: "", description: "", request_type: "need_help" });
+    setFormData({ subject: "", description: "", request_type: "need_help", phone_number: "", linkedin_url: "" });
     setEditingRequest(null);
   };
 
@@ -157,6 +203,8 @@ const StudyBuddy = () => {
       subject: request.subject,
       description: request.description || "",
       request_type: request.request_type || "need_help",
+      phone_number: request.phone_number || "",
+      linkedin_url: request.linkedin_url || "",
     });
     setIsDialogOpen(true);
   };
@@ -208,7 +256,7 @@ const StudyBuddy = () => {
 
   return (
     <div className="min-h-screen bg-background noise-overlay">
-      <DashboardNavbar college={null} onCollegeChange={() => {}} />
+      <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
       
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
@@ -315,6 +363,28 @@ const StudyBuddy = () => {
                         : "Describe what topics you want to study together..."}
                       className="bg-background/50 border-border/50"
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="phone_number">Phone Number</Label>
+                      <Input
+                        id="phone_number"
+                        value={formData.phone_number}
+                        onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                        placeholder="+91 9876543210"
+                        className="bg-background/50 border-border/50"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="linkedin_url">LinkedIn URL</Label>
+                      <Input
+                        id="linkedin_url"
+                        value={formData.linkedin_url}
+                        onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                        placeholder="https://linkedin.com/in/yourprofile"
+                        className="bg-background/50 border-border/50"
+                      />
+                    </div>
                   </div>
                   <Button 
                     type="submit" 
@@ -464,14 +534,56 @@ const StudyBuddy = () => {
                     </span>
                   </div>
 
-                  <Button className={`w-full gap-1 ${
-                    req.request_type === "can_help"
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "bg-warning hover:bg-warning/90 text-warning-foreground"
-                  }`}>
-                    <MessageCircle className="w-4 h-4" />
-                    Connect
-                  </Button>
+                  <div className="space-y-2">
+                    <Button 
+                      variant="outline"
+                      className="w-full border-border/50 hover:bg-primary/10 hover:border-primary/50"
+                      onClick={() => {
+                        setSelectedRequest(req);
+                        setDetailsDialogOpen(true);
+                      }}
+                    >
+                      View Details
+                    </Button>
+                    <div className="flex gap-2">
+                      {req.linkedin_url && (
+                        <Button 
+                          className={`flex-1 gap-1 ${
+                            req.request_type === "can_help"
+                              ? "bg-green-600 hover:bg-green-700"
+                              : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                          }`}
+                          onClick={() => window.open(req.linkedin_url!, "_blank")}
+                        >
+                          <Linkedin className="w-4 h-4" />
+                          Connect
+                        </Button>
+                      )}
+                      {req.phone_number && (
+                        <Button 
+                          variant="outline"
+                          className="flex-1 gap-1 border-border/50"
+                          onClick={() => window.open(`tel:${req.phone_number}`)}
+                        >
+                          <Phone className="w-4 h-4" />
+                          Contact
+                        </Button>
+                      )}
+                      {!req.linkedin_url && !req.phone_number && (
+                        <Button 
+                          className={`w-full gap-1 ${
+                            req.request_type === "can_help"
+                              ? "bg-green-600 hover:bg-green-700"
+                              : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                          }`}
+                          disabled
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          No Contact Info
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -484,6 +596,111 @@ const StudyBuddy = () => {
               <p className="text-muted-foreground">Be the first to {activeTab === "can_help" ? "offer help" : "create a study buddy request"}!</p>
             </div>
           )}
+
+          {/* Details Dialog */}
+          <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+            <DialogContent className="glass-dark border-border/50 max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-stranger text-foreground text-2xl">
+                  {selectedRequest?.subject}
+                </DialogTitle>
+              </DialogHeader>
+              {selectedRequest && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl border ${
+                      selectedRequest.request_type === "can_help"
+                        ? "bg-green-500/10 border-green-500/30"
+                        : "bg-warning/10 border-warning/30"
+                    }`}>
+                      {selectedRequest.request_type === "can_help" ? "🎓" : "📚"}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-foreground">{selectedRequest.subject}</h3>
+                      <Badge className={
+                        selectedRequest.request_type === "can_help"
+                          ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                          : "bg-warning/20 text-warning border border-warning/30"
+                      }>
+                        {selectedRequest.request_type === "can_help" ? "Can Help" : "Need Help"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {selectedRequest.description && (
+                    <div className="border-t border-border/30 pt-4">
+                      <h4 className="font-semibold text-foreground mb-2">
+                        {selectedRequest.request_type === "can_help" ? "Topics I can help with:" : "What I need help with:"}
+                      </h4>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{selectedRequest.description}</p>
+                    </div>
+                  )}
+
+                  <div className="border-t border-border/30 pt-4">
+                    <h4 className="font-semibold text-foreground mb-3">Contact Information</h4>
+                    <div className="space-y-2">
+                      {selectedRequest.linkedin_url && (
+                        <a 
+                          href={selectedRequest.linkedin_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Linkedin className="w-5 h-5 text-primary" />
+                          LinkedIn Profile
+                        </a>
+                      )}
+                      {selectedRequest.phone_number && (
+                        <a 
+                          href={`tel:${selectedRequest.phone_number}`}
+                          className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Phone className="w-5 h-5 text-primary" />
+                          {selectedRequest.phone_number}
+                        </a>
+                      )}
+                      {!selectedRequest.linkedin_url && !selectedRequest.phone_number && (
+                        <p className="text-sm text-muted-foreground">No contact information provided</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border/30 pt-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      <span>Posted {formatDate(selectedRequest.created_at)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {selectedRequest.linkedin_url && (
+                      <Button 
+                        className={`flex-1 ${
+                          selectedRequest.request_type === "can_help"
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                        }`}
+                        onClick={() => window.open(selectedRequest.linkedin_url!, "_blank")}
+                      >
+                        <Linkedin className="w-4 h-4 mr-2" />
+                        Connect on LinkedIn
+                      </Button>
+                    )}
+                    {selectedRequest.phone_number && (
+                      <Button 
+                        variant="outline"
+                        className="flex-1 border-border/50"
+                        onClick={() => window.open(`tel:${selectedRequest.phone_number}`)}
+                      >
+                        <Phone className="w-4 h-4 mr-2" />
+                        Call Now
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
 

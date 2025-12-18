@@ -59,6 +59,7 @@ interface Listing {
   college: string;
   contact_email: string | null;
   contact_phone: string | null;
+  listing_type?: string | null;
 }
 
 const Marketplace = () => {
@@ -74,6 +75,7 @@ const Marketplace = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
+  const [college, setCollege] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -85,17 +87,49 @@ const Marketplace = () => {
     condition: "",
     contact_email: "",
     contact_phone: "",
+    listing_type: "sell",
   });
 
   useEffect(() => {
-    fetchListings();
-  }, []);
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (college) {
+      fetchListings();
+    }
+  }, [college]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (data?.college) {
+      setCollege(data.college);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  const handleCollegeChange = (newCollege: string) => {
+    setCollege(newCollege);
+  };
 
   const fetchListings = async () => {
+    if (!college) return;
+    
     setLoading(true);
     const { data, error } = await supabase
       .from("marketplace_listings")
       .select("*")
+      .eq("college", college)
       .eq("is_sold", false)
       .order("created_at", { ascending: false });
 
@@ -116,7 +150,7 @@ const Marketplace = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      toast({ title: "Please login to sell items", variant: "destructive" });
+      toast({ title: "Please login to list items", variant: "destructive" });
       navigate("/auth");
       return;
     }
@@ -161,6 +195,7 @@ const Marketplace = () => {
       image_url: imageUrl,
       contact_email: formData.contact_email || null,
       contact_phone: formData.contact_phone || null,
+      listing_type: formData.listing_type || "sell",
     };
 
     if (editingListing) {
@@ -171,10 +206,16 @@ const Marketplace = () => {
         toast({ title: "Listing updated successfully!" });
       }
     } else {
+      if (!college) {
+        toast({ title: "Please select a college first", variant: "destructive" });
+        setUploading(false);
+        return;
+      }
+
       const { error } = await supabase.from("marketplace_listings").insert({
         ...listingData,
         user_id: user.id,
-        college: "default",
+        college: college,
       });
       if (error) {
         toast({ title: "Error creating listing", description: error.message, variant: "destructive" });
@@ -190,7 +231,7 @@ const Marketplace = () => {
   };
 
   const resetForm = () => {
-    setFormData({ title: "", description: "", price: "", category: "", condition: "", contact_email: "", contact_phone: "" });
+    setFormData({ title: "", description: "", price: "", category: "", condition: "", contact_email: "", contact_phone: "", listing_type: "sell" });
     setSelectedFile(null);
     setEditingListing(null);
   };
@@ -205,6 +246,7 @@ const Marketplace = () => {
       condition: listing.condition,
       contact_email: listing.contact_email || "",
       contact_phone: listing.contact_phone || "",
+      listing_type: listing.listing_type || "sell",
     });
     setIsDialogOpen(true);
   };
@@ -256,7 +298,7 @@ const Marketplace = () => {
 
   return (
     <div className="min-h-screen bg-background noise-overlay">
-      <DashboardNavbar college={null} onCollegeChange={() => {}} />
+      <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
       
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
@@ -279,7 +321,7 @@ const Marketplace = () => {
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground box-glow gap-2" size="lg">
                   <Plus className="w-5 h-5" />
-                  Sell Something
+                  Sell / Rent Something
                 </Button>
               </DialogTrigger>
               <DialogContent className="glass-dark border-border/50 max-h-[90vh] overflow-y-auto">
@@ -325,18 +367,32 @@ const Marketplace = () => {
                       </Select>
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="condition">Condition *</Label>
-                    <Select value={formData.condition} onValueChange={(v) => setFormData({ ...formData, condition: v })}>
-                      <SelectTrigger className="bg-background/50 border-border/50">
-                        <SelectValue placeholder="Select condition" />
-                      </SelectTrigger>
-                      <SelectContent className="glass-dark border-border/50">
-                        {conditions.map(cond => (
-                          <SelectItem key={cond} value={cond}>{cond}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="listing_type">Listing Type *</Label>
+                      <Select value={formData.listing_type} onValueChange={(v) => setFormData({ ...formData, listing_type: v })}>
+                        <SelectTrigger className="bg-background/50 border-border/50">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent className="glass-dark border-border/50">
+                          <SelectItem value="sell">Sell</SelectItem>
+                          <SelectItem value="rent">Rent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="condition">Condition *</Label>
+                      <Select value={formData.condition} onValueChange={(v) => setFormData({ ...formData, condition: v })}>
+                        <SelectTrigger className="bg-background/50 border-border/50">
+                          <SelectValue placeholder="Select condition" />
+                        </SelectTrigger>
+                        <SelectContent className="glass-dark border-border/50">
+                          {conditions.map(cond => (
+                            <SelectItem key={cond} value={cond}>{cond}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -511,6 +567,9 @@ const Marketplace = () => {
                       </Badge>
                       <Badge variant="outline" className="border-secondary/50 text-secondary">
                         {listing.condition}
+                      </Badge>
+                      <Badge variant="outline" className={listing.listing_type === "rent" ? "border-blue-500/50 text-blue-400" : "border-green-500/50 text-green-400"}>
+                        {listing.listing_type === "rent" ? "Rent" : "Sell"}
                       </Badge>
                     </div>
                     

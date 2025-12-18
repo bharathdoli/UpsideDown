@@ -1,7 +1,19 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Github, Twitter, Instagram } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Footer = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleFeatureClick = (path: string) => {
+    if (user) {
+      navigate(path);
+    } else {
+      navigate("/auth");
+    }
+  };
+
   return (
     <footer className="relative border-t border-border/30 py-12 bg-card/30">
       <div className="container mx-auto px-4">
@@ -19,17 +31,6 @@ const Footer = () => {
             <p className="text-sm text-muted-foreground">
               Making college life less chaotic, one feature at a time.
             </p>
-            <div className="flex gap-4">
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                <Github className="w-5 h-5" />
-              </a>
-            </div>
           </div>
 
           {/* Quick Links */}
@@ -37,24 +38,34 @@ const Footer = () => {
             <h4 className="font-stranger text-foreground mb-4">Features</h4>
             <ul className="space-y-2">
               <li>
-                <Link to="/notes" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <button onClick={() => handleFeatureClick("/notes")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Notes & Papers
-                </Link>
+                </button>
               </li>
               <li>
-                <Link to="/events" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <button onClick={() => handleFeatureClick("/events")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Events Hub
-                </Link>
+                </button>
               </li>
               <li>
-                <span className="text-sm text-muted-foreground/50">
-                  Senior Connect (Soon)
-                </span>
+                <button onClick={() => handleFeatureClick("/issues")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Issue Reporter
+                </button>
               </li>
               <li>
-                <span className="text-sm text-muted-foreground/50">
-                  Marketplace (Soon)
-                </span>
+                <button onClick={() => handleFeatureClick("/marketplace")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Marketplace
+                </button>
+              </li>
+              <li>
+                <button onClick={() => handleFeatureClick("/study-buddy")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Study Buddy
+                </button>
+              </li>
+              <li>
+                <button onClick={() => handleFeatureClick("/alumni")} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Alumni Connect
+                </button>
               </li>
             </ul>
           </div>
@@ -64,18 +75,28 @@ const Footer = () => {
             <h4 className="font-stranger text-foreground mb-4">Resources</h4>
             <ul className="space-y-2">
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <a href="#hero" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Home
+                </a>
+              </li>
+              <li>
+                <a href="#features" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   How It Works
                 </a>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Add Your College
+                <a href="#fad" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  FAQs
                 </a>
               </li>
               <li>
-                <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Contribute
+                <a href="#cta" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Ready to Flip?
                 </a>
               </li>
             </ul>
