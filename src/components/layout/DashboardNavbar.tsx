@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogOut, ChevronDown, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,17 +12,53 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ThemeToggle from "./ThemeToggle";
+import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 
 interface DashboardNavbarProps {
   college: string | null;
   onCollegeChange: (college: string) => void;
 }
 
-const colleges = ["Demo College", "IIT Delhi", "IIT Bombay", "NIT Trichy", "BITS Pilani"];
-
 const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [availableColleges, setAvailableColleges] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchColleges = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("college")
+        .not("college", "is", null);
+
+      if (error) {
+        console.error("Error fetching colleges for navbar:", error);
+        return;
+      }
+
+      const byKey = new Map<string, string>();
+
+      data?.forEach((row) => {
+        const raw = row.college as string | null;
+        if (!raw) return;
+        const pretty = prettifyCollegeName(raw);
+        if (!pretty) return;
+        const key = getCollegeKey(pretty);
+        if (!key) return;
+        if (!byKey.has(key)) {
+          byKey.set(key, pretty);
+        }
+      });
+
+      const list = Array.from(byKey.values()).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      );
+
+      setAvailableColleges(list);
+    };
+
+    fetchColleges();
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -70,7 +106,7 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
           </div>
 
           <div className="flex items-center gap-4">
-            {/* College Selector */}
+            {/* College Selector populated from profiles table */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="border-border/50 text-sm">
@@ -79,7 +115,12 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="glass-dark border-border/50">
-                {colleges.map((c) => (
+                {availableColleges.length === 0 && (
+                  <DropdownMenuItem className="text-xs text-muted-foreground">
+                    No colleges yet — sign up or update your profile to add one.
+                  </DropdownMenuItem>
+                )}
+                {availableColleges.map((c) => (
                   <DropdownMenuItem
                     key={c}
                     onClick={() => handleCollegeChange(c)}

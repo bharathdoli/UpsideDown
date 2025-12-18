@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Menu, X, BookOpen, Calendar, ChevronDown, AlertTriangle, ShoppingBag, GraduationCap, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,51 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import ThemeToggle from "./ThemeToggle";
+import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [availableColleges, setAvailableColleges] = useState<string[]>([]);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchColleges = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("college")
+        .not("college", "is", null);
+
+      if (error) {
+        console.error("Error fetching colleges for navbar:", error);
+        return;
+      }
+
+      const byKey = new Map<string, string>();
+
+      data?.forEach((row) => {
+        const raw = row.college as string | null;
+        if (!raw) return;
+        const pretty = prettifyCollegeName(raw);
+        if (!pretty) return;
+        const key = getCollegeKey(pretty);
+        if (!key) return;
+        if (!byKey.has(key)) {
+          byKey.set(key, pretty);
+        }
+      });
+
+      const list = Array.from(byKey.values()).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      );
+
+      setAvailableColleges(list);
+    };
+
+    fetchColleges();
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
@@ -83,17 +122,21 @@ const Navbar = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                  College
+                  Colleges
                   <ChevronDown className="ml-1 w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="glass-dark border-border/50">
-                <DropdownMenuItem className="hover:bg-primary/10 cursor-pointer">
-                  Demo College
-                </DropdownMenuItem>
-                <DropdownMenuItem className="hover:bg-primary/10 cursor-pointer">
-                  + Add Your College
-                </DropdownMenuItem>
+              <DropdownMenuContent className="glass-dark border-border/50 max-h-64 overflow-y-auto">
+                {availableColleges.length === 0 && (
+                  <DropdownMenuItem className="text-xs text-muted-foreground">
+                    No colleges yet — create an account and add your college.
+                  </DropdownMenuItem>
+                )}
+                {availableColleges.map((c) => (
+                  <DropdownMenuItem key={c} className="hover:bg-primary/10 cursor-pointer">
+                    {c}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
