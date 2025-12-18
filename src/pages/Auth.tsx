@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { getCollegeKey, prettifyCollegeName } from '@/lib/college';
@@ -19,6 +20,7 @@ const Auth = () => {
   const [branch, setBranch] = useState('');
   const [allColleges, setAllColleges] = useState<string[]>([]);
   const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
+  const [collegeSearch, setCollegeSearch] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -208,52 +210,71 @@ const Auth = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="college" className="text-foreground">College</Label>
-                  <div className="relative">
-                    <Input
-                      id="college"
-                      type="text"
-                      placeholder="Search or enter your college name"
-                      value={college}
-                      onChange={(e) => {
-                        setCollege(e.target.value);
-                        setShowCollegeDropdown(true);
-                      }}
-                      onFocus={() => {
-                        if (allColleges.length > 0) {
-                          setShowCollegeDropdown(true);
-                        }
-                      }}
-                      className="bg-background/50 border-border/50 focus:border-primary"
-                      required
-                    />
-                    {/* Suggestions dropdown built from existing colleges */}
-                    {showCollegeDropdown && allColleges.length > 0 && (
-                      <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-border/50 bg-background/95 text-sm shadow-lg">
-                        {(college
-                          ? allColleges.filter((c) =>
-                              c.toLowerCase().includes(college.toLowerCase())
-                            )
-                          : allColleges
-                        )
-                          .slice(0, 8)
-                          .map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => {
-                                setCollege(c);
-                                setShowCollegeDropdown(false);
-                              }}
-                              className="flex w-full items-center px-3 py-1.5 text-left hover:bg-primary/10 text-muted-foreground hover:text-primary"
-                            >
-                              {c}
-                            </button>
-                          ))}
+                  <Popover open={showCollegeDropdown} onOpenChange={setShowCollegeDropdown}>
+                    <div className="flex flex-col gap-2">
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground box-glow"
+                          disabled={allColleges.length === 0}
+                        >
+                          Browse existing colleges
+                        </Button>
+                      </PopoverTrigger>
+                      <Input
+                        id="college"
+                        type="text"
+                        placeholder="Or enter your college name manually"
+                        value={college}
+                        onChange={(e) => setCollege(e.target.value)}
+                        className="bg-background/50 border-border/50 focus:border-primary"
+                        required
+                      />
+                    </div>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] glass-dark border-border/50 p-3">
+                      <div className="space-y-3">
+                        <Input
+                          placeholder="Search colleges..."
+                          value={collegeSearch}
+                          onChange={(e) => setCollegeSearch(e.target.value)}
+                          className="bg-background/60 border-border/50 focus:border-primary text-sm"
+                        />
+                        <div className="max-h-48 overflow-y-auto text-sm">
+                          {(collegeSearch || college
+                            ? allColleges.filter((c) =>
+                                c
+                                  .toLowerCase()
+                                  .includes((collegeSearch || college).toLowerCase())
+                              )
+                            : allColleges
+                          )
+                            .slice(0, 20)
+                            .map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => {
+                                  setCollege(c);
+                                  setCollegeSearch('');
+                                  setShowCollegeDropdown(false);
+                                }}
+                                className="flex w-full items-center px-2 py-1.5 text-left rounded-sm hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          {allColleges.length === 0 && (
+                            <p className="text-xs text-muted-foreground px-1 py-1.5">
+                              No colleges found yet. Enter yours in the input.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    </PopoverContent>
+                  </Popover>
                   <p className="text-xs text-muted-foreground">
-                    Start typing to search existing colleges, or enter a new one.
+                    <span className="font-semibold">First try “Browse existing colleges”</span>. If you don&apos;t find yours,
+                    enter the exact college name manually above.
                   </p>
                 </div>
 
