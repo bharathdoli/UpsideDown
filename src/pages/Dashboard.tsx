@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import { toast } from "@/hooks/use-toast";
+import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 
 const features = [
   {
@@ -74,6 +75,9 @@ const Dashboard = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [college, setCollege] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [availableColleges, setAvailableColleges] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,21 +85,63 @@ const Dashboard = () => {
       navigate("/auth");
       return;
     }
-    fetchUserProfile();
+    void fetchInitialData();
   }, [user, navigate]);
 
-  const fetchUserProfile = async () => {
+  const fetchInitialData = async () => {
     if (!user) return;
-    
-    const { data, error } = await supabase
+
+    // Fetch current user's college
+    const { data: profile } = await supabase
       .from("profiles")
-      .select("college")
+      .select("college, branch, full_name")
       .eq("user_id", user.id)
       .single();
 
-    if (data?.college) {
-      setCollege(data.college);
+    if (profile?.college) {
+      setCollege(profile.college);
     }
+    if (profile?.branch) {
+      setBranch(profile.branch);
+    }
+    if (profile?.full_name) {
+      setFullName(profile.full_name);
+    }
+
+    // Fetch all colleges to populate dropdown, normalize to merge variants
+    const { data: allProfiles, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .not("college", "is", null);
+
+    if (error) {
+      toast({
+        title: "Could not load college list",
+        description: error.message,
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
+
+    const byKey = new Map<string, string>();
+    allProfiles?.forEach((row) => {
+      const raw = row.college as string | null;
+      if (!raw) return;
+      const pretty = prettifyCollegeName(raw);
+      if (!pretty) return;
+      const key = getCollegeKey(pretty);
+      if (!key) return;
+      if (!byKey.has(key)) {
+        byKey.set(key, pretty);
+      }
+    });
+
+    const list = Array.from(byKey.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+
+    setAvailableColleges(list);
     setLoading(false);
   };
 
@@ -148,7 +194,7 @@ const Dashboard = () => {
             </Link>
 
             <div className="flex items-center gap-4">
-              {/* College Selector */}
+              {/* College Selector built from actual data, normalized */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="border-border/50 text-sm">
@@ -157,7 +203,12 @@ const Dashboard = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="glass-dark border-border/50">
-                  {["Demo College", "IIT Delhi", "IIT Bombay", "NIT Trichy", "BITS Pilani"].map((c) => (
+                  {availableColleges.length === 0 && (
+                    <DropdownMenuItem className="text-muted-foreground text-xs">
+                      No colleges yet – add yours in your profile.
+                    </DropdownMenuItem>
+                  )}
+                  {availableColleges.map((c) => (
                     <DropdownMenuItem
                       key={c}
                       onClick={() => handleCollegeChange(c)}
@@ -172,7 +223,7 @@ const Dashboard = () => {
               <ThemeToggle />
 
               <span className="text-muted-foreground text-sm hidden md:block">
-                {user?.email?.split("@")[0]}
+                {fullName || user?.email?.split("@")[0]}
               </span>
 
               <Button
@@ -192,13 +243,28 @@ const Dashboard = () => {
       <main className="pt-24 pb-16 relative z-10">
         <div className="container mx-auto px-4">
           {/* Welcome Header */}
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h1 className="font-stranger text-4xl md:text-5xl lg:text-6xl text-foreground mb-4">
+          <div className="text-center max-w-3xl mx-auto mb-12 space-y-2">
+            {fullName && (
+              <p className="text-sm text-muted-foreground">
+                Hello, <span className="font-semibold text-foreground">{fullName}</span>
+              </p>
+            )}
+            <h1 className="font-stranger text-4xl md:text-5xl lg:text-6xl text-foreground mb-2">
               Welcome to <span className="text-primary text-glow">The Portal</span>
             </h1>
             <p className="text-muted-foreground text-lg">
               {college ? (
-                <>Exploring content from <span className="text-primary font-semibold">{college}</span></>
+                branch ? (
+                  <>
+                    Studying <span className="text-primary font-semibold">{branch}</span> at{" "}
+                    <span className="text-primary font-semibold">{college}</span>
+                  </>
+                ) : (
+                  <>
+                    Exploring content from{" "}
+                    <span className="text-primary font-semibold">{college}</span>
+                  </>
+                )
               ) : (
                 <>Select your college to see relevant content</>
               )}
@@ -221,7 +287,12 @@ const Dashboard = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="glass-dark border-border/50">
-                      {["Demo College", "IIT Delhi", "IIT Bombay", "NIT Trichy", "BITS Pilani"].map((c) => (
+                      {availableColleges.length === 0 && (
+                        <DropdownMenuItem className="text-muted-foreground text-xs">
+                          No colleges yet – add yours in your profile.
+                        </DropdownMenuItem>
+                      )}
+                      {availableColleges.map((c) => (
                         <DropdownMenuItem
                           key={c}
                           onClick={() => handleCollegeChange(c)}

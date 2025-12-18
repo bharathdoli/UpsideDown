@@ -7,15 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2, ArrowLeft, ChevronDown } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-const colleges = ["Demo College", "IIT Delhi", "IIT Bombay", "NIT Trichy", "BITS Pilani", "Other"];
+import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
+import { getCollegeKey, prettifyCollegeName } from '@/lib/college';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,6 +16,9 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [college, setCollege] = useState('');
+  const [branch, setBranch] = useState('');
+  const [allColleges, setAllColleges] = useState<string[]>([]);
+  const [showCollegeDropdown, setShowCollegeDropdown] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -35,6 +31,44 @@ const Auth = () => {
       navigate('/dashboard');
     }
   }, [user, navigate]);
+
+  // Load existing colleges from profiles to power the dropdown suggestions
+  useEffect(() => {
+    const fetchColleges = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('college')
+        .not('college', 'is', null);
+
+      if (error) {
+        // Non-blocking: just log and continue
+        console.error('Error fetching colleges for signup:', error);
+        return;
+      }
+
+      const byKey = new Map<string, string>();
+
+      data?.forEach((row) => {
+        const raw = row.college as string | null;
+        if (!raw) return;
+        const pretty = prettifyCollegeName(raw);
+        if (!pretty) return;
+        const key = getCollegeKey(pretty);
+        if (!key) return;
+        if (!byKey.has(key)) {
+          byKey.set(key, pretty);
+        }
+      });
+
+      const list = Array.from(byKey.values()).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+
+      setAllColleges(list);
+    };
+
+    fetchColleges();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,17 +101,29 @@ const Auth = () => {
           return;
         }
 
-        if (!college) {
+        if (!college.trim()) {
           toast({
             title: "College Required",
-            description: "Please select your college.",
+            description: "Please enter your college name.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        if (!branch.trim()) {
+          toast({
+            title: "Branch Required",
+            description: "Please enter your branch (e.g., CSE, ECE).",
             variant: "destructive",
           });
           setIsLoading(false);
           return;
         }
         
-        const { error } = await signUp(email, password, fullName);
+        const cleanedCollege = prettifyCollegeName(college);
+
+        const { error } = await signUp(email, password, fullName, cleanedCollege, branch.trim());
         if (error) {
           if (error.message.includes('already registered')) {
             toast({
@@ -93,12 +139,6 @@ const Auth = () => {
             });
           }
         } else {
-          // Update profile with college
-          const { data: { user: newUser } } = await supabase.auth.getUser();
-          if (newUser) {
-            await supabase.from("profiles").update({ college }).eq("user_id", newUser.id);
-          }
-          
           toast({
             title: "Account Created!",
             description: "Welcome to The Campus Upside Down!",
@@ -162,35 +202,72 @@ const Auth = () => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="bg-background/50 border-border/50 focus:border-primary"
-                    required={!isLogin}
+                    required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-foreground">College</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        type="button"
-                        variant="outline" 
-                        className="w-full justify-between bg-background/50 border-border/50 hover:bg-background/70"
-                      >
-                        {college || "Select your college"}
-                        <ChevronDown className="w-4 h-4 ml-2" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-full glass-dark border-border/50">
-                      {colleges.map((c) => (
-                        <DropdownMenuItem
-                          key={c}
-                          onClick={() => setCollege(c)}
-                          className="hover:bg-primary/10 cursor-pointer"
-                        >
-                          {c}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Label htmlFor="college" className="text-foreground">College</Label>
+                  <div className="relative">
+                    <Input
+                      id="college"
+                      type="text"
+                      placeholder="Search or enter your college name"
+                      value={college}
+                      onChange={(e) => {
+                        setCollege(e.target.value);
+                        setShowCollegeDropdown(true);
+                      }}
+                      onFocus={() => {
+                        if (allColleges.length > 0) {
+                          setShowCollegeDropdown(true);
+                        }
+                      }}
+                      className="bg-background/50 border-border/50 focus:border-primary"
+                      required
+                    />
+                    {/* Suggestions dropdown built from existing colleges */}
+                    {showCollegeDropdown && allColleges.length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-border/50 bg-background/95 text-sm shadow-lg">
+                        {(college
+                          ? allColleges.filter((c) =>
+                              c.toLowerCase().includes(college.toLowerCase())
+                            )
+                          : allColleges
+                        )
+                          .slice(0, 8)
+                          .map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => {
+                                setCollege(c);
+                                setShowCollegeDropdown(false);
+                              }}
+                              className="flex w-full items-center px-3 py-1.5 text-left hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                            >
+                              {c}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Start typing to search existing colleges, or enter a new one.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="branch" className="text-foreground">Branch</Label>
+                  <Input
+                    id="branch"
+                    type="text"
+                    placeholder="e.g., CSE, ECE, ME"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    className="bg-background/50 border-border/50 focus:border-primary"
+                    required
+                  />
                 </div>
               </>
             )}
