@@ -73,6 +73,8 @@ const StudyBuddy = () => {
   const [submitting, setSubmitting] = useState(false);
   const [editingRequest, setEditingRequest] = useState<StudyRequest | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<StudyRequest | null>(null);
   const { user } = useAuth();
@@ -89,30 +91,36 @@ const StudyBuddy = () => {
   useEffect(() => {
     if (user) {
       fetchUserProfile();
+      // Set default view to "All Colleges"
+      setCollege("All Colleges");
     }
   }, [user]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+    }
+
+    if (data?.college && data.college.trim() !== "") {
+      setUserCollege(data.college);
+    }
+    setProfileLoading(false);
+  };
 
   useEffect(() => {
     if (college) {
       fetchRequests();
     }
   }, [college]);
-
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from("profiles")
-      .select("college")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data?.college) {
-      setCollege(data.college);
-    } else {
-      setLoading(false);
-    }
-  };
 
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
@@ -122,12 +130,17 @@ const StudyBuddy = () => {
     if (!college) return;
     
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("study_buddy_requests")
       .select("*")
-      .eq("college", college)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
+      .eq("is_active", true);
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Error fetching requests", description: error.message, variant: "destructive" });
@@ -142,6 +155,11 @@ const StudyBuddy = () => {
     if (!user) {
       toast({ title: "Please login to create a request", variant: "destructive" });
       navigate("/auth");
+      return;
+    }
+
+    if (profileLoading) {
+      toast({ title: "Please wait", description: "Loading your profile...", variant: "default" });
       return;
     }
 
@@ -168,8 +186,12 @@ const StudyBuddy = () => {
         toast({ title: "Request updated successfully!" });
       }
     } else {
-      if (!college) {
-        toast({ title: "Please select a college first", variant: "destructive" });
+      if (!userCollege || userCollege.trim() === "") {
+        toast({ 
+          title: "College not set", 
+          description: "Please go to Dashboard and select your college from the dropdown",
+          variant: "destructive" 
+        });
         setSubmitting(false);
         return;
       }
@@ -177,7 +199,7 @@ const StudyBuddy = () => {
       const { error } = await supabase.from("study_buddy_requests").insert({
         ...requestData,
         user_id: user.id,
-        college: college,
+        college: userCollege,
       });
       if (error) {
         toast({ title: "Error creating request", description: error.message, variant: "destructive" });

@@ -23,8 +23,23 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [availableColleges, setAvailableColleges] = useState<string[]>([]);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
 
   useEffect(() => {
+    // Fetch user's college from profile (set during signup, cannot be changed)
+    const fetchUserCollege = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("college")
+        .eq("user_id", user.id)
+        .single();
+      if (data?.college) {
+        setUserCollege(data.college);
+      }
+    };
+    fetchUserCollege();
+
     const fetchColleges = async () => {
       const { data, error } = await supabase
         .from("profiles")
@@ -65,19 +80,15 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
     navigate('/');
   };
 
-  const handleCollegeChange = async (newCollege: string) => {
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ college: newCollege })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Error updating college", description: error.message, variant: "destructive" });
+  const handleCollegeChange = (newCollege: string) => {
+    // College dropdown is ONLY for viewing/filtering content
+    // It does NOT change the user's college in their profile
+    // The user's college from signup is FINAL and cannot be changed
+    onCollegeChange(newCollege);
+    if (newCollege === "All Colleges") {
+      toast({ title: "Viewing all colleges", description: "Now showing content from all colleges" });
     } else {
-      onCollegeChange(newCollege);
-      toast({ title: "College updated!", description: `Now viewing ${newCollege} content` });
+      toast({ title: `Viewing ${newCollege}`, description: "Filtering content by college" });
     }
   };
 
@@ -106,31 +117,48 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
           </div>
 
           <div className="flex items-center gap-4">
-            {/* College Selector populated from profiles table */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="border-border/50 text-sm">
-                  {college || "Select College"}
-                  <ChevronDown className="ml-2 w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="glass-dark border-border/50">
-                {availableColleges.length === 0 && (
-                  <DropdownMenuItem className="text-xs text-muted-foreground">
-                    No colleges yet — sign up or update your profile to add one.
-                  </DropdownMenuItem>
-                )}
-                {availableColleges.map((c) => (
+            {/* College Selector - ONLY for viewing/filtering content */}
+            {/* User's college from signup is FINAL and cannot be changed */}
+            <div className="flex items-center gap-2">
+              {userCollege && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  Your College: <span className="text-primary font-semibold">{userCollege}</span>
+                </span>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="border-border/50 text-sm">
+                    View: {college || "All Colleges"}
+                    <ChevronDown className="ml-2 w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="glass-dark border-border/50">
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/30">
+                    Filter by college (viewing only)
+                  </div>
                   <DropdownMenuItem
-                    key={c}
-                    onClick={() => handleCollegeChange(c)}
-                    className="hover:bg-primary/10 cursor-pointer"
+                    onClick={() => handleCollegeChange("All Colleges")}
+                    className="hover:bg-primary/10 cursor-pointer font-semibold"
                   >
-                    {c}
+                    All Colleges
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {availableColleges.length === 0 && (
+                    <DropdownMenuItem className="text-xs text-muted-foreground">
+                      No specific colleges yet — sign up to add one.
+                    </DropdownMenuItem>
+                  )}
+                  {availableColleges.map((c) => (
+                    <DropdownMenuItem
+                      key={c}
+                      onClick={() => handleCollegeChange(c)}
+                      className="hover:bg-primary/10 cursor-pointer"
+                    >
+                      {c}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
             <ThemeToggle />
 

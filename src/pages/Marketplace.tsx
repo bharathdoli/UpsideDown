@@ -76,6 +76,8 @@ const Marketplace = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -93,30 +95,36 @@ const Marketplace = () => {
   useEffect(() => {
     if (user) {
       fetchUserProfile();
+      // Set default view to "All Colleges"
+      setCollege("All Colleges");
     }
   }, [user]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+    }
+
+    if (data?.college && data.college.trim() !== "") {
+      setUserCollege(data.college);
+    }
+    setProfileLoading(false);
+  };
 
   useEffect(() => {
     if (college) {
       fetchListings();
     }
   }, [college]);
-
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from("profiles")
-      .select("college")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data?.college) {
-      setCollege(data.college);
-    } else {
-      setLoading(false);
-    }
-  };
 
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
@@ -126,12 +134,17 @@ const Marketplace = () => {
     if (!college) return;
     
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("marketplace_listings")
       .select("*")
-      .eq("college", college)
-      .eq("is_sold", false)
-      .order("created_at", { ascending: false });
+      .eq("is_sold", false);
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Error fetching listings", description: error.message, variant: "destructive" });
@@ -152,6 +165,11 @@ const Marketplace = () => {
     if (!user) {
       toast({ title: "Please login to list items", variant: "destructive" });
       navigate("/auth");
+      return;
+    }
+
+    if (profileLoading) {
+      toast({ title: "Please wait", description: "Loading your profile...", variant: "default" });
       return;
     }
 
@@ -206,8 +224,12 @@ const Marketplace = () => {
         toast({ title: "Listing updated successfully!" });
       }
     } else {
-      if (!college) {
-        toast({ title: "Please select a college first", variant: "destructive" });
+      if (!userCollege || userCollege.trim() === "") {
+        toast({ 
+          title: "College not set", 
+          description: "Please go to Dashboard and select your college from the dropdown",
+          variant: "destructive" 
+        });
         setUploading(false);
         return;
       }
@@ -215,7 +237,7 @@ const Marketplace = () => {
       const { error } = await supabase.from("marketplace_listings").insert({
         ...listingData,
         user_id: user.id,
-        college: college,
+        college: userCollege,
       });
       if (error) {
         toast({ title: "Error creating listing", description: error.message, variant: "destructive" });

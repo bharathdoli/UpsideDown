@@ -56,6 +56,8 @@ const Events = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -73,30 +75,36 @@ const Events = () => {
   useEffect(() => {
     if (user) {
       fetchUserProfile();
+      // Set default view to "All Colleges"
+      setCollege("All Colleges");
     }
   }, [user]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+    }
+
+    if (data?.college && data.college.trim() !== "") {
+      setUserCollege(data.college);
+    }
+    setProfileLoading(false);
+  };
 
   useEffect(() => {
     if (college) {
       fetchEvents();
     }
   }, [college]);
-
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from("profiles")
-      .select("college")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data?.college) {
-      setCollege(data.college);
-    } else {
-      setLoading(false);
-    }
-  };
 
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
@@ -114,12 +122,17 @@ const Events = () => {
       .delete()
       .lt("event_date", now);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("events")
       .select("*")
-      .eq("college", college)
-      .gte("event_date", now)
-      .order("event_date", { ascending: true });
+      .gte("event_date", now);
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("event_date", { ascending: true });
 
     if (error) {
       toast({ title: "Error fetching events", description: error.message, variant: "destructive" });
@@ -140,6 +153,11 @@ const Events = () => {
     if (!user) {
       toast({ title: "Please login to add events", variant: "destructive" });
       navigate("/auth");
+      return;
+    }
+
+    if (profileLoading) {
+      toast({ title: "Please wait", description: "Loading your profile...", variant: "default" });
       return;
     }
 
@@ -192,8 +210,12 @@ const Events = () => {
         toast({ title: "Event updated successfully!" });
       }
     } else {
-      if (!college) {
-        toast({ title: "Please select a college first", variant: "destructive" });
+      if (!userCollege || userCollege.trim() === "") {
+        toast({ 
+          title: "College not set", 
+          description: "Please go to Dashboard and select your college from the dropdown",
+          variant: "destructive" 
+        });
         setUploading(false);
         return;
       }
@@ -201,7 +223,7 @@ const Events = () => {
       const { error } = await supabase.from("events").insert({
         ...eventData,
         user_id: user.id,
-        college: college,
+        college: userCollege,
       });
       if (error) {
         toast({ title: "Error saving event", description: error.message, variant: "destructive" });

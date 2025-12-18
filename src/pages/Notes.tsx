@@ -52,7 +52,9 @@ const Notes = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
   const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -69,7 +71,40 @@ const Notes = () => {
       return;
     }
     fetchUserProfile();
+    // Set default view to "All Colleges"
+    setCollege("All Colleges");
   }, [user, navigate]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+      toast({ 
+        title: "Error loading profile", 
+        description: "Please refresh the page or contact support",
+        variant: "destructive" 
+      });
+    }
+
+    if (data?.college && data.college.trim() !== "") {
+      setUserCollege(data.college);
+    } else {
+      toast({ 
+        title: "Profile setup required", 
+        description: "Please go to Dashboard and update your profile with your college",
+        variant: "default" 
+      });
+    }
+    setProfileLoading(false);
+  };
 
   useEffect(() => {
     if (college) {
@@ -81,11 +116,17 @@ const Notes = () => {
   const fetchBranches = async () => {
     if (!college) return;
     
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("branch")
-      .eq("college", college)
       .not("branch", "is", null);
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching branches:", error);
@@ -96,31 +137,21 @@ const Notes = () => {
     setAvailableBranches(uniqueBranches);
   };
 
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from("profiles")
-      .select("college")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data?.college) {
-      setCollege(data.college);
-    } else {
-      setLoading(false);
-    }
-  };
 
   const fetchNotes = async () => {
     if (!college) return;
     
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("notes")
-      .select("*")
-      .eq("college", college)
-      .order("created_at", { ascending: false });
+      .select("*");
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Error fetching notes", description: error.message, variant: "destructive" });
@@ -166,6 +197,11 @@ const Notes = () => {
     if (!user) {
       toast({ title: "Please login to upload notes", variant: "destructive" });
       navigate("/auth");
+      return;
+    }
+
+    if (profileLoading) {
+      toast({ title: "Please wait", description: "Loading your profile...", variant: "default" });
       return;
     }
 
@@ -215,6 +251,16 @@ const Notes = () => {
         toast({ title: "Note updated successfully!" });
       }
     } else {
+      if (!userCollege || userCollege.trim() === "") {
+        toast({ 
+          title: "College not set", 
+          description: "Please go to Dashboard and select your college from the dropdown",
+          variant: "destructive" 
+        });
+        setUploading(false);
+        return;
+      }
+
       const { error } = await supabase.from("notes").insert({
         title: formData.title,
         subject: formData.subject,
@@ -222,13 +268,13 @@ const Notes = () => {
         description: formData.description,
         file_url: fileUrl,
         user_id: user.id,
-        college: college,
+        college: userCollege,
       });
 
       if (error) {
         toast({ title: "Error saving note", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "Note uploaded successfully!" });
+        toast({ title: `Note uploaded to ${userCollege}!` });
       }
     }
 
@@ -300,10 +346,10 @@ const Notes = () => {
               Notes & <span className="text-primary text-glow-subtle">Past Papers</span>
             </h1>
             <p className="text-muted-foreground text-lg">
-              {college ? (
+              {college && college !== "All Colleges" ? (
                 <>Access study materials from <span className="text-primary">{college}</span></>
               ) : (
-                <>Select your college to see notes</>
+                <>Access study materials from all colleges</>
               )}
             </p>
           </div>

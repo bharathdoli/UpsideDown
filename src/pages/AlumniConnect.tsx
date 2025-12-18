@@ -68,6 +68,8 @@ const AlumniConnect = () => {
   const [submitting, setSubmitting] = useState(false);
   const [editingAlumni, setEditingAlumni] = useState<Alumni | null>(null);
   const [college, setCollege] = useState<string | null>(null);
+  const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -85,30 +87,36 @@ const AlumniConnect = () => {
   useEffect(() => {
     if (user) {
       fetchUserProfile();
+      // Set default view to "All Colleges"
+      setCollege("All Colleges");
     }
   }, [user]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    
+    setProfileLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("college")
+      .eq("user_id", user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+    }
+
+    if (data?.college && data.college.trim() !== "") {
+      setUserCollege(data.college);
+    }
+    setProfileLoading(false);
+  };
 
   useEffect(() => {
     if (college) {
       fetchAlumni();
     }
   }, [college]);
-
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    
-    const { data } = await supabase
-      .from("profiles")
-      .select("college")
-      .eq("user_id", user.id)
-      .single();
-
-    if (data?.college) {
-      setCollege(data.college);
-    } else {
-      setLoading(false);
-    }
-  };
 
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
@@ -118,11 +126,16 @@ const AlumniConnect = () => {
     if (!college) return;
     
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("alumni")
-      .select("*")
-      .eq("college", college)
-      .order("graduation_year", { ascending: false });
+      .select("*");
+
+    // Only filter by college if not "All Colleges"
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("graduation_year", { ascending: false });
 
     if (error) {
       toast({ title: "Error fetching alumni", description: error.message, variant: "destructive" });
@@ -137,6 +150,11 @@ const AlumniConnect = () => {
     if (!user) {
       toast({ title: "Please login to add your profile", variant: "destructive" });
       navigate("/auth");
+      return;
+    }
+
+    if (profileLoading) {
+      toast({ title: "Please wait", description: "Loading your profile...", variant: "default" });
       return;
     }
 
@@ -171,8 +189,12 @@ const AlumniConnect = () => {
         toast({ title: "Alumni profile updated!" });
       }
     } else {
-      if (!college) {
-        toast({ title: "Please select a college first", variant: "destructive" });
+      if (!userCollege || userCollege.trim() === "") {
+        toast({ 
+          title: "College not set", 
+          description: "Please go to Dashboard and select your college from the dropdown",
+          variant: "destructive" 
+        });
         setSubmitting(false);
         return;
       }
@@ -180,7 +202,7 @@ const AlumniConnect = () => {
       const { error } = await supabase.from("alumni").insert({
         ...alumniData,
         user_id: user.id,
-        college: college,
+        college: userCollege,
       });
       if (error) {
         toast({ title: "Error creating profile", description: error.message, variant: "destructive" });

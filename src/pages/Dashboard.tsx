@@ -150,19 +150,15 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  const handleCollegeChange = async (newCollege: string) => {
-    if (!user) return;
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ college: newCollege })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Error updating college", description: error.message, variant: "destructive" });
+  const handleCollegeChange = (newCollege: string) => {
+    // College dropdown is ONLY for viewing/filtering content
+    // It does NOT change the user's college in their profile
+    // The user's college from signup is FINAL and cannot be changed
+    setCollege(newCollege);
+    if (newCollege === "All Colleges") {
+      toast({ title: "Viewing all colleges", description: "Now showing content from all colleges" });
     } else {
-      setCollege(newCollege);
-      toast({ title: "College updated!", description: `Now viewing ${newCollege} content` });
+      toast({ title: `Viewing ${newCollege}`, description: "Filtering content by college" });
     }
   };
 
