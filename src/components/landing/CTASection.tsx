@@ -10,7 +10,7 @@ const benefits = [
 
 const CTASection = () => {
   return (
-    <section className="relative py-24 overflow-hidden">
+    <section id="cta" className="relative py-24 overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 portal-bg opacity-50" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />

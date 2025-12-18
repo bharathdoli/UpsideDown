@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 const colleges = [
   "IIT Delhi", "IIT Bombay", "NIT Trichy", "BITS Pilani", "VIT Vellore",
   "SRM Chennai", "Manipal", "IIIT Hyderabad", "DTU Delhi", "NIT Surathkal"
@@ -48,7 +49,7 @@ const CollegesSection = () => {
         {/* CTA */}
         <div className="text-center mt-12">
           <p className="text-muted-foreground">
-            Don't see your college? <span className="text-primary hover:underline cursor-pointer">Request to add it →</span>
+            Don't see your college? <Link to="/auth"><span className="text-primary hover:underline cursor-pointer">Request to add it →</span></Link>
           </p>
         </div>
       </div>

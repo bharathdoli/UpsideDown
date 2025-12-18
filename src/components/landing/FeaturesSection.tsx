@@ -7,43 +7,43 @@ const features = [
     icon: BookOpen,
     title: "Notes & Past Papers",
     description: "Access study materials, notes, and previous year papers shared by seniors. No more begging in WhatsApp groups.",
-    path: "/notes",
+    path: "/auth",
   },
   {
     icon: Calendar,
     title: "Events Hub",
     description: "All college events, hackathons, fests, and workshops in one place. Never miss an opportunity again.",
-    path: "/events",
+    path: "/auth",
   },
   {
     icon: Users,
     title: "Senior Connect",
     description: "Get placement tips, interview experiences, and career advice from alumni who've been there.",
-    path: "/alumni",
+    path: "/auth",
   },
   {
     icon: Megaphone,
     title: "Issue Reporter",
     description: "Report hostel or campus issues with photos. Track status until resolved. Make your voice heard.",
-    path: "/issues",
+    path: "/auth",
   },
   {
     icon: ShoppingBag,
     title: "Marketplace",
     description: "Buy, sell, or borrow books, lab coats, and more. Student-to-student, no middlemen.",
-    path: "/marketplace",
+    path: "/auth",
   },
   {
     icon: Wrench,
     title: "Study Buddy",
     description: "Find classmates for projects, study groups, or exam prep. Learn together, grow together.",
-    path: "/study-buddy",
+    path: "/auth",
   },
 ];
 
 const FeaturesSection = () => {
   return (
-    <section className="relative py-24 overflow-hidden">
+    <section id="features" className="relative py-24 overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-card/30 to-background" />
       

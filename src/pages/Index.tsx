@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+
 import LandingNavbar from "@/components/layout/LandingNavbar";
 import NewHeroSection from "@/components/landing/NewHeroSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
@@ -31,19 +32,23 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background noise">
-      <LandingNavbar />
-      <main>
-        <NewHeroSection />
-        <CollegesSection />
-        <StatsSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <TestimonialsSection />
-        <FAQSection />
-        <CTASection />
-      </main>
-      <Footer />
+    <div className="min-h-screen bg-background noise relative overflow-hidden">
+
+      {/* Foreground content */}
+      <div className="relative z-10">
+        <LandingNavbar />
+        <main>
+          <NewHeroSection />
+          <CollegesSection />
+          <StatsSection />
+          <FeaturesSection />
+          <HowItWorksSection />
+          <TestimonialsSection />
+          <FAQSection />
+          <CTASection />
+        </main>
+        <Footer />
+      </div>
     </div>
   );
 };

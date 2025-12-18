@@ -32,6 +32,18 @@ const LandingNavbar = () => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-6">
             <button
+              onClick={() => scrollToSection("hero")}
+              className="text-muted-foreground hover:text-primary transition-colors text-sm"
+            >
+              Home
+            </button>
+            <button
+              onClick={() => scrollToSection("features")}
+              className="text-muted-foreground hover:text-primary transition-colors text-sm"
+            >
+              Features
+            </button>
+            <button
               onClick={() => scrollToSection("how-it-works")}
               className="text-muted-foreground hover:text-primary transition-colors text-sm"
             >
@@ -42,6 +54,12 @@ const LandingNavbar = () => {
               className="text-muted-foreground hover:text-primary transition-colors text-sm"
             >
               FAQs
+            </button>
+            <button
+              onClick={() => scrollToSection("cta")}
+              className="text-muted-foreground hover:text-primary transition-colors text-sm"
+            >
+              Ready to Flip?
             </button>
           </div>
 
@@ -73,6 +91,18 @@ const LandingNavbar = () => {
         <div className="md:hidden glass-dark border-t border-border/30 animate-fade-in">
           <div className="container mx-auto px-4 py-4 space-y-2">
             <button
+              onClick={() => scrollToSection("hero")}
+              className="block w-full text-left text-muted-foreground hover:text-primary py-2"
+            >
+              Home
+            </button>
+            <button
+              onClick={() => scrollToSection("features")}
+              className="block w-full text-left text-muted-foreground hover:text-primary py-2"
+            >
+              Features
+            </button>
+            <button
               onClick={() => scrollToSection("how-it-works")}
               className="block w-full text-left text-muted-foreground hover:text-primary py-2"
             >
@@ -83,6 +113,12 @@ const LandingNavbar = () => {
               className="block w-full text-left text-muted-foreground hover:text-primary py-2"
             >
               FAQs
+            </button>
+            <button
+              onClick={() => scrollToSection("cta")}
+              className="block w-full text-left text-muted-foreground hover:text-primary py-2"
+            >
+              Ready to Flip?
             </button>
             <div className="pt-4 border-t border-border/30">
               <Link to="/auth" onClick={() => setIsOpen(false)}>
