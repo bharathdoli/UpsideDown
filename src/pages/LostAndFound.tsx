@@ -490,7 +490,7 @@ const LostAndFound = () => {
             ) : (
               <>
                 <TabsContent value="all" className="mt-0">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     {filteredItems.map((item) => (
                       <Card 
                         key={item.id}
@@ -597,7 +597,7 @@ const LostAndFound = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="lost" className="mt-0">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     {filteredItems.filter(item => item.item_type === "lost").map((item) => (
                       <Card 
                         key={item.id}
@@ -704,7 +704,7 @@ const LostAndFound = () => {
                   </div>
                 </TabsContent>
                 <TabsContent value="found" className="mt-0">
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     {filteredItems.filter(item => item.item_type === "found").map((item) => (
                       <Card 
                         key={item.id}

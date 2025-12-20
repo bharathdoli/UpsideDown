@@ -429,7 +429,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Quick Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 w-full">
                   <Card className="glass-dark border-border/30 p-4 text-center hover:border-primary/50 transition-colors">
                     <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-2">
                       <Trophy className="w-6 h-6 text-yellow-500" />
@@ -476,7 +476,7 @@ const Dashboard = () => {
                 </Button>
               </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
               <Link to="/notes">
                 <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 cursor-pointer h-full text-center p-6 hover:border-primary/50">
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center mx-auto mb-4">
@@ -556,7 +556,7 @@ const Dashboard = () => {
                 </Card>
               )}
 
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                 {features.map((feature, index) => (
                   <Link key={index} to={feature.path}>
                     <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 group h-full cursor-pointer overflow-hidden">
@@ -779,7 +779,7 @@ const Dashboard = () => {
                 View All
               </Button>
             </div>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {/* Trending Notes */}
               <Card className="glass-dark border-border/30 hover-glow transition-all duration-300">
                 <CardHeader>

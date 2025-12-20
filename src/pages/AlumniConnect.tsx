@@ -358,7 +358,7 @@ const AlumniConnect = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mb-8 md:mb-12">
             {[
               { label: "Total Alumni", value: alumni.length.toString(), icon: "🎓" },
               { label: "Companies", value: new Set(alumni.map(a => a.company).filter(Boolean)).size.toString(), icon: "🏢" },
@@ -413,7 +413,7 @@ const AlumniConnect = () => {
                       className="bg-background/50 border-border/50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="company">Company</Label>
                       <Input
@@ -566,7 +566,7 @@ const AlumniConnect = () => {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {filteredAlumni.map(a => (
                     <div 
                       key={a.id}

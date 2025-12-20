@@ -169,21 +169,21 @@ const Auth = () => {
       {/* Back Link */}
       <Link 
         to="/" 
-        className="fixed top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors z-20"
+        className="fixed top-4 left-4 md:top-6 md:left-6 flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors z-20"
       >
         <ArrowLeft className="w-4 h-4" />
-        <span className="text-sm">Back to Home</span>
+        <span className="text-xs md:text-sm hidden sm:inline">Back to Home</span>
       </Link>
 
-      <Card className="w-full max-w-md glass-dark border-border/50 relative z-10">
+      <Card className="w-full max-w-md glass-dark border-border/50 relative z-10 mx-4">
         <CardHeader className="text-center">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center mb-4 animate-pulse-glow">
             <span className="text-primary font-stranger text-2xl">TU</span>
           </div>
-          <CardTitle className="font-stranger text-2xl text-foreground">
+          <CardTitle className="font-stranger text-xl md:text-2xl text-foreground">
             {isLogin ? 'Enter The Portal' : 'Join The Upside Down'}
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-muted-foreground text-sm md:text-base">
             {isLogin 
               ? 'Welcome back, explorer. Your campus awaits.' 
               : 'Create your account and explore the hidden world.'

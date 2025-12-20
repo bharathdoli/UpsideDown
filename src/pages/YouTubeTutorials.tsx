@@ -485,7 +485,7 @@ const YouTubeTutorials = () => {
                       className="bg-background/50 border-border/50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="subject">Subject *</Label>
                       <Select value={formData.subject} onValueChange={(v) => setFormData({ ...formData, subject: v })}>
@@ -513,7 +513,7 @@ const YouTubeTutorials = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="branch">Branch</Label>
                       <Input
@@ -550,7 +550,7 @@ const YouTubeTutorials = () => {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {sortedTutorials.map((tutorial) => {
                 const videoId = extractVideoId(tutorial.youtube_url);
                 const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : "";

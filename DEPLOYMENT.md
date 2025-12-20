@@ -45,6 +45,8 @@ This guide covers deploying the Campus Right Side Up application to Vercel (Fron
    - **Build Command:** `npm run build`
    - **Output Directory:** `dist`
    - **Install Command:** `npm install`
+   
+   **Note:** The project includes a `vercel.json` file that handles client-side routing. This ensures that refreshing pages like `/dashboard` won't result in 404 errors. Vercel will automatically use this configuration.
 
 5. **Add Environment Variables:**
    - Click on **"Environment Variables"**

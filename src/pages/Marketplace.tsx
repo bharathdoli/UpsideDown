@@ -419,7 +419,7 @@ const Marketplace = () => {
                       className="bg-background/50 border-border/50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="price">Price (₹) *</Label>
                       <Input
@@ -445,7 +445,7 @@ const Marketplace = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="listing_type">Listing Type *</Label>
                       <Select value={formData.listing_type} onValueChange={(v) => setFormData({ ...formData, listing_type: v })}>
@@ -472,7 +472,7 @@ const Marketplace = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="contact_email">Contact Email *</Label>
                       <Input
@@ -591,7 +591,7 @@ const Marketplace = () => {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {filteredListings.map(listing => (
                 <div 
                   key={listing.id}

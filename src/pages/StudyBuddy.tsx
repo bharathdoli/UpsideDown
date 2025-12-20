@@ -426,7 +426,7 @@ const StudyBuddy = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
             <div className="glass-dark rounded-xl p-4 text-center border border-border/30">
               <HelpCircle className="w-8 h-8 text-warning mx-auto mb-2" />
               <p className="text-2xl font-bold text-warning">{needHelpCount}</p>
@@ -519,7 +519,7 @@ const StudyBuddy = () => {
                       className="bg-background/50 border-border/50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="phone_number">Phone Number</Label>
                       <Input
@@ -665,7 +665,7 @@ const StudyBuddy = () => {
                       </DialogContent>
                     </Dialog>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                     {groups.map(group => {
                       const members = groupMembers[group.id] || [];
                       const isMember = members.some(m => m.user_id === user?.id);

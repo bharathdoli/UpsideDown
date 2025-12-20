@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, ChevronDown, ArrowLeft, Bell, Bookmark, MessageCircle } from "lucide-react";
+import { LogOut, ChevronDown, ArrowLeft, Bell, Bookmark, MessageCircle, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -117,20 +117,21 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
             </Link>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {/* College Selector - ONLY for viewing/filtering content */}
             {/* User's college from signup is FINAL and cannot be changed */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               {userCollege && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap hidden lg:inline">
                   Your College: <span className="text-primary font-semibold">{userCollege}</span>
                 </span>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="border-border/50 text-sm">
-                    View: {college || "All Colleges"}
-                    <ChevronDown className="ml-2 w-4 h-4" />
+                  <Button variant="outline" className="border-border/50 text-xs md:text-sm px-2 md:px-3">
+                    <span className="hidden sm:inline">View: </span>
+                    <span className="max-w-[100px] md:max-w-none truncate">{college || "All"}</span>
+                    <ChevronDown className="ml-1 md:ml-2 w-3 h-3 md:w-4 md:h-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="glass-dark border-border/50">
@@ -164,27 +165,28 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
             <NotificationBell />
             <Link
               to="/saved"
-              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <Bookmark className="w-4 h-4 mr-1" />
-              Saved
+              <span className="hidden xl:inline">Saved</span>
             </Link>
             <Link
               to="/messages"
-              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <MessageCircle className="w-4 h-4 mr-1" />
-              Messages
+              <span className="hidden xl:inline">Messages</span>
             </Link>
             <Link
               to="/leaderboard"
-              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
-              Leaderboard
+              <Trophy className="w-4 h-4 mr-1" />
+              <span className="hidden xl:inline">Leaderboard</span>
             </Link>
             <ThemeToggle />
 
-            <span className="text-muted-foreground text-sm hidden md:block">
+            <span className="text-muted-foreground text-xs md:text-sm hidden lg:block max-w-[80px] truncate">
               {user?.email?.split("@")[0]}
             </span>
 
