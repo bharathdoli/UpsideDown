@@ -16,7 +16,13 @@ import {
   Trophy,
   Clock,
   Activity,
-  ArrowRight
+  ArrowRight,
+  Search,
+  Youtube,
+  MessageSquare,
+  TrendingUp,
+  FileText,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +87,20 @@ const features = [
     path: "/saved",
     color: "from-purple-500 to-pink-500",
   },
+  {
+    icon: Search,
+    title: "Lost & Found",
+    description: "Report lost items or claim found items on campus",
+    path: "/lost-found",
+    color: "from-pink-500 to-rose-500",
+  },
+  {
+    icon: Youtube,
+    title: "Tutorials",
+    description: "Browse and share YouTube tutorials for your subjects",
+    path: "/tutorials",
+    color: "from-rose-500 to-red-500",
+  },
 ];
 
 const Dashboard = () => {
@@ -94,9 +114,14 @@ const Dashboard = () => {
 
   // New State for Widgets
   const [userPoints, setUserPoints] = useState(0);
+  const [userBadges, setUserBadges] = useState<any[]>([]);
   const [recentListings, setRecentListings] = useState<any[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [activeRequests, setActiveRequests] = useState(0);
+  const [savedCount, setSavedCount] = useState(0);
+  const [myNotesCount, setMyNotesCount] = useState(0);
+  const [myEventsCount, setMyEventsCount] = useState(0);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -112,7 +137,7 @@ const Dashboard = () => {
     // Fetch current user's college
     const { data: profile } = await supabase
       .from("profiles")
-      .select("college, branch, full_name, points")
+      .select("college, branch, full_name")
       .eq("user_id", user.id)
       .single();
 
@@ -124,9 +149,6 @@ const Dashboard = () => {
     }
     if (profile?.full_name) {
       setFullName(profile.full_name);
-    }
-    if (profile?.points) {
-      setUserPoints(profile.points);
     }
 
     // Fetch all colleges to populate dropdown, normalize to merge variants
@@ -164,8 +186,44 @@ const Dashboard = () => {
 
     setAvailableColleges(list);
 
+    // Fetch User Points and Badges
+    const { data: pointsData } = await supabase
+      .from("user_points")
+      .select("points_total")
+      .eq("user_id", user.id)
+      .single();
+    setUserPoints(pointsData?.points_total || 0);
+
+    const { data: badgesData } = await supabase
+      .from("user_badges")
+      .select("badge_key, awarded_at")
+      .eq("user_id", user.id)
+      .order("awarded_at", { ascending: false });
+    setUserBadges(badgesData || []);
+
+    // Fetch Saved Items Count
+    const { count: savedCountData } = await supabase
+      .from("saved_items")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setSavedCount(savedCountData || 0);
+
+    // Fetch My Notes Count
+    const { count: notesCount } = await supabase
+      .from("notes")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setMyNotesCount(notesCount || 0);
+
+    // Fetch My Events Count
+    const { count: eventsCount } = await supabase
+      .from("events")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    setMyEventsCount(eventsCount || 0);
+
     // Fetch Widget Data
-    // 1. Recent Marketplace Listings (Global or College specific)
+    // 1. Recent Marketplace Listings
     const { data: listings } = await supabase
       .from("marketplace_listings")
       .select("id, title, price, image_url, created_at")
@@ -177,9 +235,9 @@ const Dashboard = () => {
     // 2. Upcoming Events
     const { data: events } = await supabase
       .from("events")
-      .select("id, title, date, location")
-      .gte("date", new Date().toISOString())
-      .order("date", { ascending: true })
+      .select("id, title, event_date, location")
+      .gte("event_date", new Date().toISOString())
+      .order("event_date", { ascending: true })
       .limit(3);
     setUpcomingEvents(events || []);
 
@@ -190,7 +248,36 @@ const Dashboard = () => {
       .eq("is_active", true);
     setActiveRequests(count || 0);
 
-    // 4. My Study Groups
+    // 4. Recent Activity (last 5 actions)
+    const activities = [];
+    
+    // Recent notes
+    const { data: recentNotes } = await supabase
+      .from("notes")
+      .select("id, title, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(2);
+    recentNotes?.forEach(note => {
+      activities.push({ type: "note", title: note.title, date: note.created_at, id: note.id });
+    });
+
+    // Recent events
+    const { data: recentEvents } = await supabase
+      .from("events")
+      .select("id, title, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(2);
+    recentEvents?.forEach(event => {
+      activities.push({ type: "event", title: event.title, date: event.created_at, id: event.id });
+    });
+
+    // Sort by date and take latest 5
+    activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    setRecentActivity(activities.slice(0, 5));
+
+    // 5. My Study Groups
     const { data: myGroups } = await supabase
       .from("study_group_members")
       .select(`
@@ -200,7 +287,7 @@ const Dashboard = () => {
       .eq("user_id", user.id)
       .limit(3);
 
-    // 5. My Listings
+    // 6. My Listings
     const { data: myListings } = await supabase
       .from("marketplace_listings")
       .select("id, title, price, image_url, is_sold")
@@ -311,41 +398,131 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="pt-24 pb-16 relative z-10">
         <div className="container mx-auto px-4">
-          {/* Welcome Header */}
-          <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
-            <div className="space-y-2">
-              {fullName && (
-                <p className="text-sm text-muted-foreground">
-                  Welcome back, <span className="font-semibold text-foreground">{fullName}</span>
-                </p>
-              )}
-              <h1 className="font-stranger text-4xl md:text-5xl text-foreground">
-                Campus <span className="text-primary text-glow">Dashboard</span>
-              </h1>
-            </div>
+          {/* Hero Section */}
+          <section className="relative mb-16 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 rounded-3xl" />
+            <div className="relative glass-dark border border-primary/20 rounded-3xl p-8 md:p-12">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="space-y-4 flex-1">
+                  {fullName && (
+                    <p className="text-sm text-muted-foreground uppercase tracking-wider">
+                      Welcome back
+                    </p>
+                  )}
+                  <h1 className="font-stranger text-4xl md:text-6xl text-foreground">
+                    {fullName ? (
+                      <>
+                        Hey, <span className="text-primary text-glow">{fullName.split(" ")[0]}</span>!
+                      </>
+                    ) : (
+                      <>
+                        Campus <span className="text-primary text-glow">Dashboard</span>
+                      </>
+                    )}
+                  </h1>
+                  {college && branch && (
+                    <p className="text-muted-foreground text-lg">
+                      Studying <span className="text-foreground font-semibold">{branch}</span> at{" "}
+                      <span className="text-primary font-semibold">{college}</span>
+                    </p>
+                  )}
+                </div>
 
-            {/* Quick Stats Cards */}
-            <div className="flex gap-4">
-              <Card className="glass-dark border-border/30 p-3 flex items-center gap-3 min-w-[140px]">
-                <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                  <Trophy className="w-5 h-5 text-yellow-500" />
+                {/* Quick Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto">
+                  <Card className="glass-dark border-border/30 p-4 text-center hover:border-primary/50 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-2">
+                      <Trophy className="w-6 h-6 text-yellow-500" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{userPoints}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Points</p>
+                  </Card>
+                  <Card className="glass-dark border-border/30 p-4 text-center hover:border-primary/50 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-2">
+                      <FileText className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{myNotesCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Notes</p>
+                  </Card>
+                  <Card className="glass-dark border-border/30 p-4 text-center hover:border-primary/50 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-2">
+                      <Star className="w-6 h-6 text-green-500" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{savedCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Saved</p>
+                  </Card>
+                  <Card className="glass-dark border-border/30 p-4 text-center hover:border-primary/50 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-2">
+                      <Calendar className="w-6 h-6 text-purple-500" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{myEventsCount}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Events</p>
+                  </Card>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Points</p>
-                  <p className="text-lg font-bold text-foreground">{userPoints}</p>
-                </div>
-              </Card>
-              <Card className="glass-dark border-border/30 p-3 flex items-center gap-3 min-w-[140px]">
-                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Active Requests</p>
-                  <p className="text-lg font-bold text-foreground">{activeRequests}</p>
-                </div>
-              </Card>
+              </div>
             </div>
-          </div>
+          </section>
+
+          {/* Quick Actions Section */}
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-stranger text-2xl md:text-3xl text-foreground">
+                Quick <span className="text-primary">Actions</span>
+              </h2>
+              <Link to="/leaderboard">
+                <Button variant="outline" className="gap-2">
+                  <Trophy className="w-4 h-4" />
+                  Leaderboard
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Link to="/notes">
+                <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 cursor-pointer h-full text-center p-6 hover:border-primary/50">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="font-semibold text-foreground">Upload Notes</p>
+                </Card>
+              </Link>
+              <Link to="/events">
+                <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 cursor-pointer h-full text-center p-6 hover:border-primary/50">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="font-semibold text-foreground">Create Event</p>
+                </Card>
+              </Link>
+              <Link to="/marketplace">
+                <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 cursor-pointer h-full text-center p-6 hover:border-primary/50">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mx-auto mb-4">
+                    <ShoppingBag className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="font-semibold text-foreground">Sell Item</p>
+                </Card>
+              </Link>
+              <Link to="/study-buddy">
+                <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 cursor-pointer h-full text-center p-6 hover:border-primary/50">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-7 h-7 text-white" />
+                  </div>
+                  <p className="font-semibold text-foreground">Find Buddy</p>
+                </Card>
+              </Link>
+            </div>
+          </section>
+
+          {/* Features Section */}
+          <section className="mb-16">
+            <div className="text-center max-w-2xl mx-auto mb-12">
+              <h2 className="font-stranger text-3xl md:text-4xl text-foreground mb-4">
+                Explore <span className="text-primary text-glow-subtle">Features</span>
+              </h2>
+              <p className="text-muted-foreground text-lg">
+                Everything you need to navigate campus life, all in one place.
+              </p>
+            </div>
+          </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column: Features Grid */}
@@ -402,6 +579,56 @@ const Dashboard = () => {
 
             {/* Right Column: Widgets */}
             <div className="space-y-6">
+              {/* Badges Widget */}
+              {userBadges.length > 0 && (
+                <Card className="glass-dark border-border/30">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-yellow-500" />
+                      Your Badges
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {userBadges.slice(0, 6).map((badge, idx) => (
+                        <Badge key={idx} variant="outline" className="bg-primary/10 border-primary/30">
+                          {badge.badge_key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recent Activity */}
+              {recentActivity.length > 0 && (
+                <Card className="glass-dark border-border/30">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      Recent Activity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {recentActivity.map((activity, idx) => (
+                      <div key={idx} className="flex items-center gap-3 text-sm">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          activity.type === "note" ? "bg-red-500/10 text-red-500" : "bg-orange-500/10 text-orange-500"
+                        }`}>
+                          {activity.type === "note" ? <FileText className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-foreground truncate">{activity.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(activity.date).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* My Study Groups */}
               <Card className="glass-dark border-border/30">
                 <CardHeader className="pb-3">
@@ -537,12 +764,89 @@ const Dashboard = () => {
                     <p className="text-sm text-muted-foreground text-center py-4">No upcoming events</p>
                   )}
                 </CardContent>
-              </Card >
-            </div >
-          </div >
-        </div >
-      </main >
-    </div >
+              </Card>
+            </div>
+          </div>
+
+          {/* Trending Section */}
+          <section className="mt-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-stranger text-2xl md:text-3xl text-foreground">
+                Trending <span className="text-primary">Now</span>
+              </h2>
+              <Button variant="ghost" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                View All
+              </Button>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Trending Notes */}
+              <Card className="glass-dark border-border/30 hover-glow transition-all duration-300">
+                <CardHeader>
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <CardTitle className="text-lg">Popular Notes</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Check out the most liked and downloaded notes from your college.
+                  </p>
+                  <Link to="/notes">
+                    <Button variant="outline" className="w-full mt-4 gap-2">
+                      Browse Notes
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              {/* Trending Events */}
+              <Card className="glass-dark border-border/30 hover-glow transition-all duration-300">
+                <CardHeader>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Calendar className="w-5 h-5 text-orange-500" />
+                    <CardTitle className="text-lg">Upcoming Events</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Don't miss out on exciting campus events and hackathons.
+                  </p>
+                  <Link to="/events">
+                    <Button variant="outline" className="w-full mt-4 gap-2">
+                      View Events
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              {/* Study Groups */}
+              <Card className="glass-dark border-border/30 hover-glow transition-all duration-300">
+                <CardHeader>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-purple-500" />
+                    <CardTitle className="text-lg">Active Groups</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Join study groups and collaborate with peers across colleges.
+                  </p>
+                  <Link to="/study-buddy">
+                    <Button variant="outline" className="w-full mt-4 gap-2">
+                      Find Groups
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
   );
 };
 

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 
 type SavedItemRow = {
   id: string;
-  item_type: "note" | "event" | "listing" | "study_buddy" | "alumni";
+  item_type: "note" | "event" | "listing" | "study_buddy" | "alumni" | "lost_found" | "tutorial";
   item_id: string;
 };
 
@@ -110,6 +110,22 @@ const Saved = () => {
       );
     }
 
+    if (byType.lost_found?.length) {
+      const { data } = await supabase
+        .from("lost_and_found")
+        .select("id, title, description")
+        .in("id", byType.lost_found);
+      data?.forEach((l) => (result[l.id] = l as AnyItem));
+    }
+
+    if (byType.tutorial?.length) {
+      const { data } = await supabase
+        .from("youtube_tutorials")
+        .select("id, title, description")
+        .in("id", byType.tutorial);
+      data?.forEach((t) => (result[t.id] = t as AnyItem));
+    }
+
     setItems(result);
     setLoading(false);
   };
@@ -146,6 +162,12 @@ const Saved = () => {
         break;
       case "alumni":
         navigate("/alumni");
+        break;
+      case "lost_found":
+        navigate("/lost-found");
+        break;
+      case "tutorial":
+        navigate("/tutorials");
         break;
     }
   };

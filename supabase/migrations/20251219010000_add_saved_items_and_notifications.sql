@@ -2,7 +2,7 @@
 create table if not exists public.saved_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  item_type text not null check (item_type in ('note', 'event', 'listing', 'study_buddy', 'alumni')),
+  item_type text not null check (item_type in ('note', 'event', 'listing', 'study_buddy', 'alumni', 'lost_found', 'tutorial')),
   item_id uuid not null,
   created_at timestamptz not null default now()
 );

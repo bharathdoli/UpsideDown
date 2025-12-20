@@ -163,19 +163,12 @@ const StudyBuddy = () => {
   };
 
   const fetchGroups = async () => {
-    if (!college) return;
-
     setLoading(true);
-    let query = supabase
+    // Display all groups from backend without any filtering for everyone
+    const { data, error } = await supabase
       .from("study_groups")
-      .select("*");
-
-    // Show groups from the selected college. If "All Colleges", show all groups.
-    if (college !== "All Colleges") {
-      query = query.eq("college", college);
-    }
-
-    const { data, error } = await query.order("created_at", { ascending: false });
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (error) {
       toast({ title: "Error fetching groups", description: error.message, variant: "destructive" });

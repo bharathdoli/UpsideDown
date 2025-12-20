@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
 interface SaveToggleProps {
-  itemType: "note" | "event" | "listing" | "study_buddy" | "alumni";
+  itemType: "note" | "event" | "listing" | "study_buddy" | "alumni" | "lost_found" | "tutorial";
   itemId: string;
   initialSaved?: boolean;
   className?: string;

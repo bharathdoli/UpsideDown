@@ -25,15 +25,10 @@ create index if not exists study_group_members_user_id_idx on public.study_group
 alter table public.study_groups enable row level security;
 alter table public.study_group_members enable row level security;
 
-create policy "Users can view groups in their college"
+create policy "Users can view all groups"
   on public.study_groups
   for select
-  using (
-    college in (
-      select college from public.profiles where user_id = auth.uid()
-    )
-    or created_by = auth.uid()
-  );
+  using (true); -- Allow cross-college collaboration
 
 create policy "Users can create groups"
   on public.study_groups
@@ -43,18 +38,7 @@ create policy "Users can create groups"
 create policy "Users can view group members"
   on public.study_group_members
   for select
-  using (
-    exists (
-      select 1 from public.study_groups
-      where study_groups.id = study_group_members.group_id
-      and (
-        study_groups.created_by = auth.uid()
-        or study_groups.college in (
-          select college from public.profiles where user_id = auth.uid()
-        )
-      )
-    )
-  );
+  using (true); -- Allow viewing members of any group for cross-college collaboration
 
 create policy "Users can join/leave groups"
   on public.study_group_members

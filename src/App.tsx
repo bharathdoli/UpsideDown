@@ -18,6 +18,8 @@ import Messages from "./pages/Messages";
 import Chat from "./pages/Chat";
 import GroupChat from "./pages/GroupChat";
 import Leaderboard from "./pages/Leaderboard";
+import LostAndFound from "./pages/LostAndFound";
+import YouTubeTutorials from "./pages/YouTubeTutorials";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +48,8 @@ const App = () => (
               <Route path="/chat/:chatId" element={<Chat />} />
               <Route path="/group-chat/:groupId" element={<GroupChat />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
+              <Route path="/lost-found" element={<LostAndFound />} />
+              <Route path="/tutorials" element={<YouTubeTutorials />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

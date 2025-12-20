@@ -626,6 +626,126 @@ export type Database = {
         }
         Relationships: []
       }
+      lost_and_found: {
+        Row: {
+          id: string
+          user_id: string
+          college: string
+          item_type: string
+          title: string
+          description: string | null
+          category: string | null
+          location: string | null
+          contact_info: string | null
+          image_url: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          college: string
+          item_type: string
+          title: string
+          description?: string | null
+          category?: string | null
+          location?: string | null
+          contact_info?: string | null
+          image_url?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          college?: string
+          item_type?: string
+          title?: string
+          description?: string | null
+          category?: string | null
+          location?: string | null
+          contact_info?: string | null
+          image_url?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      youtube_tutorials: {
+        Row: {
+          id: string
+          user_id: string
+          college: string
+          title: string
+          description: string | null
+          youtube_url: string
+          subject: string
+          branch: string | null
+          difficulty: string | null
+          duration_minutes: number | null
+          thumbnail_url: string | null
+          view_count: number
+          like_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          college: string
+          title: string
+          description?: string | null
+          youtube_url: string
+          subject: string
+          branch?: string | null
+          difficulty?: string | null
+          duration_minutes?: number | null
+          thumbnail_url?: string | null
+          view_count?: number
+          like_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          college?: string
+          title?: string
+          description?: string | null
+          youtube_url?: string
+          subject?: string
+          branch?: string | null
+          difficulty?: string | null
+          duration_minutes?: number | null
+          thumbnail_url?: string | null
+          view_count?: number
+          like_count?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      tutorial_likes: {
+        Row: {
+          id: string
+          tutorial_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tutorial_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tutorial_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
