@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, ChevronDown, ArrowLeft } from "lucide-react";
+import { LogOut, ChevronDown, ArrowLeft, Bell, Bookmark, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import ThemeToggle from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 
 interface DashboardNavbarProps {
@@ -98,14 +99,14 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
         <div className="flex items-center justify-between h-16">
           {/* Back to Dashboard */}
           <div className="flex items-center gap-4">
-            <Link 
-              to="/dashboard" 
+            <Link
+              to="/dashboard"
               className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm hidden sm:block">Dashboard</span>
             </Link>
-            
+
             <Link to="/dashboard" className="flex items-center gap-2 group">
               <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all">
                 <span className="text-primary font-stranger text-sm">TU</span>
@@ -160,6 +161,27 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
               </DropdownMenu>
             </div>
 
+            <NotificationBell />
+            <Link
+              to="/saved"
+              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Bookmark className="w-4 h-4 mr-1" />
+              Saved
+            </Link>
+            <Link
+              to="/messages"
+              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              <MessageCircle className="w-4 h-4 mr-1" />
+              Messages
+            </Link>
+            <Link
+              to="/leaderboard"
+              className="hidden md:inline-flex text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              Leaderboard
+            </Link>
             <ThemeToggle />
 
             <span className="text-muted-foreground text-sm hidden md:block">

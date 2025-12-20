@@ -230,6 +230,108 @@ export type Database = {
         }
         Relationships: []
       }
+      note_ratings: {
+        Row: {
+          id: string
+          note_id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          note_id?: string
+          user_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      note_comments: {
+        Row: {
+          id: string
+          note_id: string
+          user_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          user_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          note_id?: string
+          user_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      saved_items: {
+        Row: {
+          id: string
+          user_id: string
+          item_type: string
+          item_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          item_type: string
+          item_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          item_type?: string
+          item_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string
+          body: string | null
+          link: string | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title: string
+          body?: string | null
+          link?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          body?: string | null
+          link?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -293,6 +395,234 @@ export type Database = {
           request_type?: string | null
           subject?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      event_rsvps: {
+        Row: {
+          id: string
+          event_id: string
+          user_id: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          user_id: string
+          status: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          event_id?: string
+          user_id?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      chats: {
+        Row: {
+          id: string
+          buyer_id: string
+          seller_id: string
+          listing_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          buyer_id: string
+          seller_id: string
+          listing_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          buyer_id?: string
+          seller_id?: string
+          listing_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          id: string
+          chat_id: string
+          sender_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          sender_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          sender_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      study_groups: {
+        Row: {
+          id: string
+          subject: string
+          college: string
+          description: string | null
+          created_by: string
+          max_members: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          subject: string
+          college: string
+          description?: string | null
+          created_by: string
+          max_members?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          subject?: string
+          college?: string
+          description?: string | null
+          created_by?: string
+          max_members?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      study_group_members: {
+        Row: {
+          id: string
+          group_id: string
+          user_id: string
+          role: string
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          user_id: string
+          role?: string
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          user_id?: string
+          role?: string
+          joined_at?: string
+        }
+        Relationships: []
+      }
+      mentorship_requests: {
+        Row: {
+          id: string
+          alumni_id: string
+          student_id: string
+          message: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          alumni_id: string
+          student_id: string
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          alumni_id?: string
+          student_id?: string
+          message?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_points: {
+        Row: {
+          user_id: string
+          points_total: number
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          points_total?: number
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          points_total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          id: string
+          user_id: string
+          badge_key: string
+          awarded_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          badge_key: string
+          awarded_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          badge_key?: string
+          awarded_at?: string
+        }
+        Relationships: []
+      }
+      group_chat_messages: {
+        Row: {
+          id: string
+          group_id: string
+          sender_id: string
+          content: string | null
+          file_url: string | null
+          file_name: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          group_id: string
+          sender_id: string
+          content?: string | null
+          file_url?: string | null
+          file_name?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          group_id?: string
+          sender_id?: string
+          content?: string | null
+          file_url?: string | null
+          file_name?: string | null
+          created_at?: string
         }
         Relationships: []
       }

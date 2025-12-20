@@ -31,6 +31,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SaveToggle } from "@/components/ui/save-toggle";
+import { createNotificationForUser } from "@/lib/notifications";
+import { addPoints } from "@/lib/gamification";
 
 const categories = [
   "All",
@@ -243,6 +246,7 @@ const Marketplace = () => {
         toast({ title: "Error creating listing", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "Listing created successfully!" });
+        void addPoints(user.id, 5, "listing_create");
       }
     }
 
@@ -282,6 +286,58 @@ const Marketplace = () => {
     } else {
       toast({ title: "Listing deleted successfully!" });
       fetchListings();
+    }
+  };
+
+  const handleChat = async (listing: Listing) => {
+    if (!user) {
+      toast({ title: "Please login to chat", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    if (listing.user_id === user.id) {
+      toast({ title: "You can't chat with yourself", variant: "destructive" });
+      return;
+    }
+
+    // Check if chat already exists
+    const { data: existingChat } = await supabase
+      .from("chats")
+      .select("id")
+      .eq("buyer_id", user.id)
+      .eq("seller_id", listing.user_id)
+      .eq("listing_id", listing.id)
+      .single();
+
+    if (existingChat) {
+      navigate(`/chat/${existingChat.id}`);
+      return;
+    }
+
+    // Create new chat
+    const { data: newChat, error } = await supabase
+      .from("chats")
+      .insert({
+        buyer_id: user.id,
+        seller_id: listing.user_id,
+        listing_id: listing.id,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      toast({ title: "Error starting chat", description: error.message, variant: "destructive" });
+    } else if (newChat) {
+      // Notify seller
+      void createNotificationForUser(
+        listing.user_id,
+        "listing_new",
+        "New chat started",
+        `${user.email?.split("@")[0]} wants to chat about "${listing.title}"`,
+        `/chat/${newChat.id}`
+      );
+      navigate(`/chat/${newChat.id}`);
     }
   };
 
@@ -552,6 +608,9 @@ const Marketplace = () => {
                     ) : (
                       <span className="text-6xl">📦</span>
                     )}
+                     <div className="absolute top-2 left-2">
+                       <SaveToggle itemType="listing" itemId={listing.id} />
+                     </div>
                     {user?.id === listing.user_id && (
                       <div className="absolute top-2 right-2">
                         <DropdownMenu>
@@ -584,10 +643,10 @@ const Marketplace = () => {
                     <p className="text-2xl font-bold text-primary mb-3">₹{listing.price}</p>
                     
                     <div className="flex flex-wrap gap-2 mb-3">
-                      <Badge variant="outline" className="border-border/50 text-muted-foreground">
+                      <Badge variant="outline" className="border-border/50 text-foreground">
                         {listing.category}
                       </Badge>
-                      <Badge variant="outline" className="border-secondary/50 text-secondary">
+                      <Badge variant="outline" className="border-border/50 text-foreground">
                         {listing.condition}
                       </Badge>
                       <Badge variant="outline" className={listing.listing_type === "rent" ? "border-blue-500/50 text-blue-400" : "border-green-500/50 text-green-400"}>
@@ -601,23 +660,28 @@ const Marketplace = () => {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 border-border/50 hover:border-primary/50 gap-1"
-                        onClick={() => {
-                          if (listing.contact_phone) {
-                            window.open(`tel:${listing.contact_phone}`);
-                          } else if (listing.contact_email) {
-                            window.open(`mailto:${listing.contact_email}`);
-                          } else {
-                            toast({ title: "No contact info available", variant: "destructive" });
-                          }
-                        }}
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        Contact
-                      </Button>
+                      {listing.user_id !== user?.id && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 border-border/50 hover:border-primary/50 gap-1"
+                          onClick={() => handleChat(listing)}
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Chat
+                        </Button>
+                      )}
+                      {listing.user_id === user?.id && listing.contact_phone && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 border-border/50 hover:border-primary/50 gap-1"
+                          onClick={() => window.open(`tel:${listing.contact_phone}`)}
+                        >
+                          <Phone className="w-4 h-4" />
+                          Call
+                        </Button>
+                      )}
                       <Button 
                         size="sm" 
                         className="flex-1 bg-primary hover:bg-primary/90"

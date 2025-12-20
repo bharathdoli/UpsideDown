@@ -31,6 +31,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SaveToggle } from "@/components/ui/save-toggle";
+import { createNotificationForUser } from "@/lib/notifications";
+import { addPoints } from "@/lib/gamification";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const industries = [
   "All Industries",
@@ -70,6 +74,11 @@ const AlumniConnect = () => {
   const [college, setCollege] = useState<string | null>(null);
   const [userCollege, setUserCollege] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"all" | "my-mentorships">("all");
+  const [mentorshipRequests, setMentorshipRequests] = useState<any[]>([]);
+  const [mentorshipDialogOpen, setMentorshipDialogOpen] = useState(false);
+  const [selectedAlumni, setSelectedAlumni] = useState<Alumni | null>(null);
+  const [mentorshipMessage, setMentorshipMessage] = useState("");
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -246,14 +255,82 @@ const AlumniConnect = () => {
   };
 
   const handleConnect = (alum: Alumni) => {
-    if (alum.email) {
-      window.open(`mailto:${alum.email}?subject=Connection Request from Campus Upside Down&body=Hi ${alum.name},%0D%0A%0D%0AI found your profile on Campus Upside Down and would love to connect with you.%0D%0A%0D%0ABest regards`);
-    } else if (alum.linkedin_url) {
-      window.open(alum.linkedin_url, "_blank");
+    if (!user) {
+      toast({ title: "Please login to request mentorship", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+    setSelectedAlumni(alum);
+    setMentorshipDialogOpen(true);
+  };
+
+  const handleRequestMentorship = async () => {
+    if (!user || !selectedAlumni) return;
+
+    const { error } = await supabase.from("mentorship_requests").insert({
+      alumni_id: selectedAlumni.user_id,
+      student_id: user.id,
+      message: mentorshipMessage || null,
+      status: "pending",
+    });
+
+    if (error) {
+      toast({ title: "Error sending request", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "No contact information available", variant: "destructive" });
+      toast({ title: "Mentorship request sent!" });
+      setMentorshipDialogOpen(false);
+      setMentorshipMessage("");
+      setSelectedAlumni(null);
+      
+      // Notify alumni
+      void createNotificationForUser(
+        selectedAlumni.user_id,
+        "alumni_new",
+        "New mentorship request",
+        `${user.email?.split("@")[0]} requested mentorship`,
+        "/alumni"
+      );
+      
+      void addPoints(user.id, 5, "mentorship");
+      fetchMentorshipRequests();
     }
   };
+
+  const fetchMentorshipRequests = async () => {
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("mentorship_requests")
+      .select(`
+        *,
+        alumni:profiles!mentorship_requests_alumni_id_fkey(full_name),
+        student:profiles!mentorship_requests_student_id_fkey(full_name)
+      `)
+      .or(`alumni_id.eq.${user.id},student_id.eq.${user.id}`)
+      .order("created_at", { ascending: false });
+
+    setMentorshipRequests(data || []);
+  };
+
+  const handleUpdateMentorshipStatus = async (requestId: string, status: "accepted" | "declined") => {
+    const { error } = await supabase
+      .from("mentorship_requests")
+      .update({ status })
+      .eq("id", requestId);
+
+    if (error) {
+      toast({ title: "Error updating request", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Request ${status}!` });
+      fetchMentorshipRequests();
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeTab === "my-mentorships") {
+      fetchMentorshipRequests();
+    }
+  }, [user, activeTab]);
 
   const filteredAlumni = alumni.filter(a => {
     const matchesSearch = 
@@ -410,110 +487,193 @@ const AlumniConnect = () => {
             </Dialog>
           </div>
 
-          {/* Search & Filters */}
-          <div className="glass-dark rounded-xl p-4 mb-8 border border-border/30">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, company, or role..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-background/50 border-border/50 focus:border-primary"
-                />
-              </div>
-              <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
-                <SelectTrigger className="w-full md:w-48 bg-background/50 border-border/50">
-                  <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="Industry" />
-                </SelectTrigger>
-                <SelectContent className="glass-dark border-border/50">
-                  {industries.map(ind => (
-                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "my-mentorships")} className="mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 glass-dark">
+              <TabsTrigger value="all">All Alumni</TabsTrigger>
+              <TabsTrigger value="my-mentorships">My Mentorships</TabsTrigger>
+            </TabsList>
 
-          {/* Alumni Grid */}
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAlumni.map(a => (
-                <div 
-                  key={a.id}
-                  className="glass-dark rounded-xl p-6 border border-border/30 hover:border-primary/30 transition-all group"
-                >
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-3xl border border-border/50">
-                      👤
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {a.name}
-                        </h3>
-                        {user?.id === a.user_id && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="glass-dark border-border/50">
-                              <DropdownMenuItem onClick={() => handleEdit(a)}>
-                                <Edit className="w-4 h-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+            <TabsContent value={activeTab} className="mt-0">
+              {/* Search & Filters */}
+              <div className="glass-dark rounded-xl p-4 mb-8 border border-border/30">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name, company, or role..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-background/50 border-border/50 focus:border-primary"
+                    />
+                  </div>
+                  <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                    <SelectTrigger className="w-full md:w-48 bg-background/50 border-border/50">
+                      <Filter className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="Industry" />
+                    </SelectTrigger>
+                    <SelectContent className="glass-dark border-border/50">
+                      {industries.map(ind => (
+                        <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Content based on tab */}
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : activeTab === "my-mentorships" ? (
+                <div className="space-y-4">
+                  {mentorshipRequests.map(req => {
+                    const isAlumni = req.alumni_id === user?.id;
+                    const otherUser = isAlumni ? (req as any).student : (req as any).alumni;
+                    return (
+                      <div key={req.id} className="glass-dark rounded-xl p-6 border border-border/30">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold">{otherUser?.full_name || "User"}</h3>
+                            <p className="text-sm text-muted-foreground">{req.message || "No message"}</p>
+                            <Badge className={`mt-2 ${
+                              req.status === "accepted" ? "bg-green-600" :
+                              req.status === "declined" ? "bg-red-600" :
+                              "bg-yellow-600"
+                            }`}>
+                              {req.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        {isAlumni && req.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => handleUpdateMentorshipStatus(req.id, "accepted")}>
+                              Accept
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleUpdateMentorshipStatus(req.id, "declined")}>
+                              Decline
+                            </Button>
+                          </div>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{a.role || "Alumni"}</p>
-                      <p className="text-sm text-primary">{a.company || "Not specified"}</p>
+                    );
+                  })}
+                  {mentorshipRequests.length === 0 && (
+                    <div className="text-center py-16">
+                      <p className="text-muted-foreground">No mentorship requests yet</p>
                     </div>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <GraduationCap className="w-4 h-4" />
-                      <span>Batch {a.graduation_year}</span>
-                    </div>
-                    {a.bio && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{a.bio}</p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    {a.linkedin_url && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 border-border/50 hover:border-primary/50 gap-1"
-                        onClick={() => window.open(a.linkedin_url!, "_blank")}
-                      >
-                        <Linkedin className="w-4 h-4" />
-                        LinkedIn
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm" 
-                      className="flex-1 bg-primary hover:bg-primary/90 gap-1"
-                      onClick={() => handleConnect(a)}
-                    >
-                      <Mail className="w-4 h-4" />
-                      Connect
-                    </Button>
-                  </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredAlumni.map(a => (
+                    <div 
+                      key={a.id}
+                      className="glass-dark rounded-xl p-6 border border-border/30 hover:border-primary/30 transition-all group"
+                    >
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-3xl border border-border/50">
+                          👤
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                             <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                               {a.name}
+                             </h3>
+                             <SaveToggle itemType="alumni" itemId={a.id} />
+                            {user?.id === a.user_id && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="glass-dark border-border/50">
+                                  <DropdownMenuItem onClick={() => handleEdit(a)}>
+                                    <Edit className="w-4 h-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{a.role || "Alumni"}</p>
+                          <p className="text-sm text-primary">{a.company || "Not specified"}</p>
+                        </div>
+                      </div>
 
-          {!loading && filteredAlumni.length === 0 && (
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <GraduationCap className="w-4 h-4" />
+                          <span>Batch {a.graduation_year}</span>
+                        </div>
+                        {a.bio && (
+                          <p className="text-sm text-muted-foreground line-clamp-2">{a.bio}</p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {a.linkedin_url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 border-border/50 hover:border-primary/50 gap-1"
+                            onClick={() => window.open(a.linkedin_url!, "_blank")}
+                          >
+                            <Linkedin className="w-4 h-4" />
+                            LinkedIn
+                          </Button>
+                        )}
+                        <Button 
+                          size="sm" 
+                          className="flex-1 bg-primary hover:bg-primary/90 gap-1"
+                          onClick={() => handleConnect(a)}
+                        >
+                          <Mail className="w-4 h-4" />
+                          Connect
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {/* Mentorship Request Dialog */}
+          <Dialog open={mentorshipDialogOpen} onOpenChange={setMentorshipDialogOpen}>
+            <DialogContent className="glass-dark border-border/50">
+              <DialogHeader>
+                <DialogTitle>Request Mentorship</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {selectedAlumni && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Requesting mentorship from <strong>{selectedAlumni.name}</strong>
+                    </p>
+                    <Label>Message (optional)</Label>
+                    <Textarea
+                      value={mentorshipMessage}
+                      onChange={(e) => setMentorshipMessage(e.target.value)}
+                      placeholder="Tell them why you'd like mentorship..."
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setMentorshipDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleRequestMentorship}>
+                    Send Request
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {!loading && activeTab === "all" && filteredAlumni.length === 0 && (
             <div className="text-center py-16">
               <p className="text-muted-foreground text-lg">No alumni found matching your criteria.</p>
             </div>

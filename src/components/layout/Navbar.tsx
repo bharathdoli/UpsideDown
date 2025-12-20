@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, BookOpen, Calendar, ChevronDown, AlertTriangle, ShoppingBag, GraduationCap, Users, LogOut } from "lucide-react";
+import { Menu, X, BookOpen, Calendar, ChevronDown, AlertTriangle, ShoppingBag, GraduationCap, Users, LogOut, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import ThemeToggle from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 
 const Navbar = () => {
@@ -118,6 +119,13 @@ const Navbar = () => {
               <Users className="w-4 h-4" />
               <span>Study</span>
             </Link>
+            <Link
+              to="/saved"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors text-sm"
+            >
+              <Bookmark className="w-4 h-4" />
+              <span>Saved</span>
+            </Link>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -143,6 +151,7 @@ const Navbar = () => {
 
           {/* Auth Buttons & Theme Toggle */}
           <div className="hidden md:flex items-center gap-3">
+            <NotificationBell />
             <ThemeToggle />
             {user ? (
               <>
@@ -239,6 +248,14 @@ const Navbar = () => {
             >
               <Users className="w-4 h-4" />
               <span>Study Buddy</span>
+            </Link>
+            <Link
+              to="/saved"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary py-2"
+              onClick={() => setIsOpen(false)}
+            >
+              <Bookmark className="w-4 h-4" />
+              <span>Saved Items</span>
             </Link>
             <div className="pt-4 border-t border-border/30 space-y-2">
               {user ? (

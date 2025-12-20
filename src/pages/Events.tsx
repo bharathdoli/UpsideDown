@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Calendar, MapPin, Clock, ExternalLink, ChevronDown, Plus, X, Loader2, Upload, Mail, Phone, Edit, Trash2 } from "lucide-react";
+import { Search, Calendar, MapPin, Clock, ExternalLink, ChevronDown, Plus, X, Loader2, Upload, Mail, Phone, Edit, Trash2, Heart, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SaveToggle } from "@/components/ui/save-toggle";
+import { createNotificationForUser } from "@/lib/notifications";
+import { addPoints } from "@/lib/gamification";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const eventTypes = ["All Events", "Tech Fest", "Hackathon", "Workshop", "Cultural", "Sports", "Seminar"];
 
@@ -58,6 +62,9 @@ const Events = () => {
   const [college, setCollege] = useState<string | null>(null);
   const [userCollege, setUserCollege] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"all" | "my-events">("all");
+  const [rsvpStatuses, setRsvpStatuses] = useState<Record<string, "going" | "interested" | null>>({});
+  const [rsvpCounts, setRsvpCounts] = useState<Record<string, { going: number; interested: number }>>({});
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -106,6 +113,12 @@ const Events = () => {
     }
   }, [college]);
 
+  useEffect(() => {
+    if (events.length > 0 && user) {
+      fetchRSVPs();
+    }
+  }, [events, user]);
+
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
   };
@@ -140,6 +153,116 @@ const Events = () => {
       setEvents(data || []);
     }
     setLoading(false);
+  };
+
+  const fetchRSVPs = async () => {
+    if (!user || events.length === 0) return;
+
+    const eventIds = events.map(e => e.id);
+    
+    // Fetch user's RSVP statuses
+    const { data: userRsvps } = await supabase
+      .from("event_rsvps")
+      .select("event_id, status")
+      .eq("user_id", user.id)
+      .in("event_id", eventIds);
+
+    const statusMap: Record<string, "going" | "interested" | null> = {};
+    userRsvps?.forEach(rsvp => {
+      statusMap[rsvp.event_id] = rsvp.status as "going" | "interested";
+    });
+    setRsvpStatuses(statusMap);
+
+    // Fetch RSVP counts for all events
+    const { data: allRsvps } = await supabase
+      .from("event_rsvps")
+      .select("event_id, status")
+      .in("event_id", eventIds);
+
+    const countsMap: Record<string, { going: number; interested: number }> = {};
+    eventIds.forEach(id => {
+      countsMap[id] = { going: 0, interested: 0 };
+    });
+    allRsvps?.forEach(rsvp => {
+      if (rsvp.status === "going") {
+        countsMap[rsvp.event_id].going++;
+      } else if (rsvp.status === "interested") {
+        countsMap[rsvp.event_id].interested++;
+      }
+    });
+    setRsvpCounts(countsMap);
+  };
+
+  const handleRSVP = async (eventId: string, status: "going" | "interested") => {
+    if (!user) {
+      toast({ title: "Please login to RSVP", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    const currentStatus = rsvpStatuses[eventId];
+    
+    // If clicking the same status, remove RSVP
+    if (currentStatus === status) {
+      const { error } = await supabase
+        .from("event_rsvps")
+        .delete()
+        .eq("event_id", eventId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        toast({ title: "Error updating RSVP", description: error.message, variant: "destructive" });
+      } else {
+        setRsvpStatuses(prev => ({ ...prev, [eventId]: null }));
+        setRsvpCounts(prev => ({
+          ...prev,
+          [eventId]: {
+            going: status === "going" ? Math.max(0, prev[eventId]?.going - 1) : prev[eventId]?.going || 0,
+            interested: status === "interested" ? Math.max(0, prev[eventId]?.interested - 1) : prev[eventId]?.interested || 0,
+          },
+        }));
+      }
+    } else {
+      // Insert or update RSVP
+      const { error } = await supabase
+        .from("event_rsvps")
+        .upsert({
+          event_id: eventId,
+          user_id: user.id,
+          status,
+        }, {
+          onConflict: "event_id,user_id",
+        });
+
+      if (error) {
+        toast({ title: "Error updating RSVP", description: error.message, variant: "destructive" });
+      } else {
+        setRsvpStatuses(prev => ({ ...prev, [eventId]: status }));
+        const oldStatus = currentStatus;
+        setRsvpCounts(prev => {
+          const current = prev[eventId] || { going: 0, interested: 0 };
+          return {
+            ...prev,
+            [eventId]: {
+              going: status === "going" ? current.going + 1 : (oldStatus === "going" ? Math.max(0, current.going - 1) : current.going),
+              interested: status === "interested" ? current.interested + 1 : (oldStatus === "interested" ? Math.max(0, current.interested - 1) : current.interested),
+            },
+          };
+        });
+
+        // Create notification for event creator
+        const event = events.find(e => e.id === eventId);
+        if (event && event.user_id !== user.id) {
+          void createNotificationForUser(
+            event.user_id,
+            "event_rsvp",
+            "New RSVP",
+            `${user.email?.split("@")[0]} ${status === "going" ? "is going" : "is interested"} to "${event.title}"`,
+            "/events"
+          );
+        }
+      }
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,15 +343,26 @@ const Events = () => {
         return;
       }
 
-      const { error } = await supabase.from("events").insert({
+      const { data: inserted, error } = await supabase.from("events").insert({
         ...eventData,
         user_id: user.id,
         college: userCollege,
-      });
+      }).select("id").single();
+      
       if (error) {
         toast({ title: "Error saving event", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "Event created successfully!" });
+        if (inserted?.id) {
+          void createNotificationForUser(
+            user.id,
+            "event_new",
+            "Event created",
+            formData.title,
+            "/events"
+          );
+          void addPoints(user.id, 15, "event_create");
+        }
       }
     }
 
@@ -275,6 +409,13 @@ const Events = () => {
   const filteredEvents = events.filter((event) => {
     const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    
+    // Filter by tab
+    if (activeTab === "my-events" && user) {
+      const rsvpStatus = rsvpStatuses[event.id];
+      return matchesSearch && (rsvpStatus === "going" || rsvpStatus === "interested" || event.user_id === user.id);
+    }
+    
     return matchesSearch;
   });
 
@@ -313,48 +454,56 @@ const Events = () => {
             </p>
           </div>
 
-          {/* Search and Filters */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Search events..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-card border-border/50 focus:border-primary"
-              />
-            </div>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="border-border/50">
-                  {selectedType}
-                  <ChevronDown className="ml-2 w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="glass-dark border-border/50">
-                {eventTypes.map((type) => (
-                  <DropdownMenuItem
-                    key={type}
-                    onClick={() => setSelectedType(type)}
-                    className="hover:bg-primary/10 cursor-pointer"
-                  >
-                    {type}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "my-events")} className="mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 glass-dark">
+              <TabsTrigger value="all">All Events</TabsTrigger>
+              <TabsTrigger value="my-events">My Events</TabsTrigger>
+            </TabsList>
 
-            <Dialog open={isDialogOpen} onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) resetForm();
-            }}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Event
-                </Button>
-              </DialogTrigger>
+            <TabsContent value={activeTab} className="mt-0">
+              {/* Search and Filters */}
+              <div className="flex flex-col md:flex-row gap-4 mb-8">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search events..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-card border-border/50 focus:border-primary"
+                  />
+                </div>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="border-border/50">
+                      {selectedType}
+                      <ChevronDown className="ml-2 w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="glass-dark border-border/50">
+                    {eventTypes.map((type) => (
+                      <DropdownMenuItem
+                        key={type}
+                        onClick={() => setSelectedType(type)}
+                        className="hover:bg-primary/10 cursor-pointer"
+                      >
+                        {type}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                  setIsDialogOpen(open);
+                  if (!open) resetForm();
+                }}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Event
+                    </Button>
+                  </DialogTrigger>
               <DialogContent className="glass-dark border-border/50 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-stranger text-foreground">
@@ -490,14 +639,14 @@ const Events = () => {
             </Dialog>
           </div>
 
-          {/* Events Grid */}
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents.map((event) => (
+              {/* Events Grid */}
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredEvents.map((event) => (
                 <Card 
                   key={event.id}
                   className="glass-dark border-border/30 hover-glow transition-all duration-300 group overflow-hidden"
@@ -513,9 +662,12 @@ const Events = () => {
                   )}
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <Badge className="bg-green-500/20 text-green-400">
-                        Upcoming
-                      </Badge>
+                       <div className="flex items-center gap-2">
+                         <Badge className="bg-green-500/20 text-green-400">
+                           Upcoming
+                         </Badge>
+                         <SaveToggle itemType="event" itemId={event.id} />
+                       </div>
                       {user?.id === event.user_id && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -558,6 +710,44 @@ const Events = () => {
                         </div>
                       )}
                     </div>
+                    {/* RSVP Counts */}
+                    {(rsvpCounts[event.id]?.going > 0 || rsvpCounts[event.id]?.interested > 0) && (
+                      <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
+                        {rsvpCounts[event.id]?.going > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {rsvpCounts[event.id].going} going
+                          </span>
+                        )}
+                        {rsvpCounts[event.id]?.interested > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Heart className="w-3 h-3" />
+                            {rsvpCounts[event.id].interested} interested
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {/* RSVP Buttons */}
+                    <div className="flex gap-2 mb-2">
+                      <Button
+                        variant={rsvpStatuses[event.id] === "going" ? "default" : "outline"}
+                        size="sm"
+                        className={`flex-1 ${rsvpStatuses[event.id] === "going" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                        onClick={() => handleRSVP(event.id, "going")}
+                      >
+                        <Users className="w-4 h-4 mr-1" />
+                        Going
+                      </Button>
+                      <Button
+                        variant={rsvpStatuses[event.id] === "interested" ? "default" : "outline"}
+                        size="sm"
+                        className={`flex-1 ${rsvpStatuses[event.id] === "interested" ? "bg-primary" : ""}`}
+                        onClick={() => handleRSVP(event.id, "interested")}
+                      >
+                        <Heart className="w-4 h-4 mr-1" />
+                        Interested
+                      </Button>
+                    </div>
                     <Button 
                       variant="outline" 
                       className="w-full border-border/50 hover:bg-primary/10 hover:border-primary/50"
@@ -570,9 +760,11 @@ const Events = () => {
                     </Button>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+                ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
 
           {!loading && filteredEvents.length === 0 && (
             <div className="text-center py-16">

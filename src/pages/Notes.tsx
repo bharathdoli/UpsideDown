@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Filter, BookOpen, Download, Eye, ChevronDown, Upload, X, Loader2, Trash2, Edit } from "lucide-react";
+import { Search, Filter, BookOpen, Download, Eye, ChevronDown, Upload, X, Loader2, Trash2, Edit, ThumbsUp, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SaveToggle } from "@/components/ui/save-toggle";
+import { createNotificationForUser } from "@/lib/notifications";
+import { addPoints } from "@/lib/gamification";
 
 const subjects = ["All Subjects", "Computer Science", "Mathematics", "Electronics", "Physics", "Chemistry", "Mechanical", "Civil"];
 
@@ -54,6 +57,13 @@ const Notes = () => {
   const [college, setCollege] = useState<string | null>(null);
   const [userCollege, setUserCollege] = useState<string | null>(null);
   const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [ratingCounts, setRatingCounts] = useState<Record<string, number>>({});
+  const [userLiked, setUserLiked] = useState<Record<string, boolean>>({});
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [selectedSort, setSelectedSort] = useState<"newest" | "most_liked">("newest");
+  const [commentsOpenFor, setCommentsOpenFor] = useState<Note | null>(null);
+  const [comments, setComments] = useState<{ id: string; content: string; created_at: string }[]>([]);
+  const [newComment, setNewComment] = useState("");
   const [profileLoading, setProfileLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -156,7 +166,38 @@ const Notes = () => {
     if (error) {
       toast({ title: "Error fetching notes", description: error.message, variant: "destructive" });
     } else {
-      setNotes(data || []);
+      const rows = (data || []) as Note[];
+      setNotes(rows);
+
+      const noteIds = rows.map((n) => n.id);
+      if (noteIds.length && user) {
+        // Fetch ratings
+        const { data: ratings } = await supabase
+          .from("note_ratings")
+          .select("note_id, user_id")
+          .in("note_id", noteIds);
+
+        const counts: Record<string, number> = {};
+        const liked: Record<string, boolean> = {};
+        (ratings || []).forEach((r: any) => {
+          counts[r.note_id] = (counts[r.note_id] || 0) + 1;
+          if (r.user_id === user.id) liked[r.note_id] = true;
+        });
+        setRatingCounts(counts);
+        setUserLiked(liked);
+
+        // Fetch comment counts
+        const { data: commentRows } = await supabase
+          .from("note_comments")
+          .select("note_id")
+          .in("note_id", noteIds);
+
+        const cCounts: Record<string, number> = {};
+        (commentRows || []).forEach((c: any) => {
+          cCounts[c.note_id] = (cCounts[c.note_id] || 0) + 1;
+        });
+        setCommentCounts(cCounts);
+      }
     }
     setLoading(false);
   };
@@ -190,6 +231,80 @@ const Notes = () => {
     } catch (error) {
       toast({ title: "Error downloading file", variant: "destructive" });
     }
+  };
+
+  const handleToggleLike = async (noteId: string) => {
+    if (!user) {
+      toast({ title: "Please login to like notes", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    const alreadyLiked = userLiked[noteId];
+    setUserLiked((prev) => ({ ...prev, [noteId]: !alreadyLiked }));
+    setRatingCounts((prev) => ({
+      ...prev,
+      [noteId]: (prev[noteId] || 0) + (alreadyLiked ? -1 : 1),
+    }));
+
+    if (alreadyLiked) {
+      await supabase
+        .from("note_ratings")
+        .delete()
+        .eq("note_id", noteId)
+        .eq("user_id", user.id);
+    } else {
+      await supabase.from("note_ratings").insert({
+        note_id: noteId,
+        user_id: user.id,
+      });
+    }
+  };
+
+  const openComments = async (note: Note) => {
+    setCommentsOpenFor(note);
+    setNewComment("");
+    const { data, error } = await supabase
+      .from("note_comments")
+      .select("id, content, created_at")
+      .eq("note_id", note.id)
+      .order("created_at", { ascending: true });
+    if (error) {
+      console.error("Error fetching comments", error);
+      return;
+    }
+    setComments((data || []) as any);
+  };
+
+  const handleAddComment = async () => {
+    if (!user) {
+      toast({ title: "Please login to comment", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+    if (!commentsOpenFor || !newComment.trim()) return;
+
+    const { data, error } = await supabase
+      .from("note_comments")
+      .insert({
+        note_id: commentsOpenFor.id,
+        user_id: user.id,
+        content: newComment.trim(),
+      })
+      .select("id, content, created_at")
+      .single();
+
+    if (error) {
+      toast({ title: "Error adding comment", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setComments((prev) => [...prev, data as any]);
+    setNewComment("");
+    setCommentCounts((prev) => ({
+      ...prev,
+      [commentsOpenFor.id]: (prev[commentsOpenFor.id] || 0) + 1,
+    }));
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -261,7 +376,7 @@ const Notes = () => {
         return;
       }
 
-      const { error } = await supabase.from("notes").insert({
+      const { data: inserted, error } = await supabase.from("notes").insert({
         title: formData.title,
         subject: formData.subject,
         branch: formData.branch || null,
@@ -269,12 +384,22 @@ const Notes = () => {
         file_url: fileUrl,
         user_id: user.id,
         college: userCollege,
-      });
+      }).select("id").single();
 
       if (error) {
         toast({ title: "Error saving note", description: error.message, variant: "destructive" });
       } else {
         toast({ title: `Note uploaded to ${userCollege}!` });
+        if (inserted?.id) {
+          void createNotificationForUser(
+            user.id,
+            "note_new",
+            "Note uploaded",
+            formData.title,
+            "/notes"
+          );
+          void addPoints(user.id, 10, "note_upload");
+        }
       }
     }
 
@@ -315,6 +440,16 @@ const Notes = () => {
     const matchesSubject = selectedSubject === "All Subjects" || note.subject === selectedSubject;
     const matchesBranch = selectedBranch === "All Branches" || note.branch === selectedBranch;
     return matchesSearch && matchesSubject && matchesBranch;
+  });
+
+  const sortedNotes = [...filteredNotes].sort((a, b) => {
+    if (selectedSort === "most_liked") {
+      const aLikes = ratingCounts[a.id] || 0;
+      const bLikes = ratingCounts[b.id] || 0;
+      return bLikes - aLikes;
+    }
+    // newest
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
   const formatDate = (dateString: string) => {
@@ -376,7 +511,7 @@ const Notes = () => {
                   />
                 </div>
                 
-                <DropdownMenu>
+                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="border-border/50">
                       <Filter className="w-4 h-4 mr-2" />
@@ -396,6 +531,29 @@ const Notes = () => {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                 <DropdownMenu>
+                   <DropdownMenuTrigger asChild>
+                     <Button variant="outline" className="border-border/50">
+                       Sort: {selectedSort === "newest" ? "Newest" : "Most Liked"}
+                       <ChevronDown className="ml-2 w-4 h-4" />
+                     </Button>
+                   </DropdownMenuTrigger>
+                   <DropdownMenuContent className="glass-dark border-border/50">
+                     <DropdownMenuItem
+                       onClick={() => setSelectedSort("newest")}
+                       className="hover:bg-primary/10 cursor-pointer"
+                     >
+                       Newest
+                     </DropdownMenuItem>
+                     <DropdownMenuItem
+                       onClick={() => setSelectedSort("most_liked")}
+                       className="hover:bg-primary/10 cursor-pointer"
+                     >
+                       Most Liked
+                     </DropdownMenuItem>
+                   </DropdownMenuContent>
+                 </DropdownMenu>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -544,8 +702,8 @@ const Notes = () => {
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredNotes.map((note) => (
+                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {sortedNotes.map((note) => (
                     <Card 
                       key={note.id}
                       className="glass-dark border-border/30 hover-glow transition-all duration-300 group"
@@ -556,6 +714,7 @@ const Notes = () => {
                             <BookOpen className="w-5 h-5 text-primary" />
                           </div>
                           <div className="flex items-center gap-2">
+                            <SaveToggle itemType="note" itemId={note.id} />
                             <Badge variant="secondary" className="bg-secondary/50">
                               {getFileExtension(note.file_url)}
                             </Badge>
@@ -616,6 +775,26 @@ const Notes = () => {
                             </>
                           )}
                         </div>
+                         <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+                           <button
+                             type="button"
+                             className={`inline-flex items-center gap-1 ${
+                               userLiked[note.id] ? "text-primary" : "hover:text-primary"
+                             }`}
+                             onClick={() => handleToggleLike(note.id)}
+                           >
+                             <ThumbsUp className="w-3 h-3" />
+                             <span>{ratingCounts[note.id] || 0}</span>
+                           </button>
+                           <button
+                             type="button"
+                             className="inline-flex items-center gap-1 hover:text-primary"
+                             onClick={() => openComments(note)}
+                           >
+                             <MessageCircle className="w-3 h-3" />
+                             <span>Comments ({commentCounts[note.id] || 0})</span>
+                           </button>
+                         </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -634,7 +813,48 @@ const Notes = () => {
         </div>
       </main>
 
-      <Footer />
+       <Footer />
+
+       <Dialog open={!!commentsOpenFor} onOpenChange={(open) => !open && setCommentsOpenFor(null)}>
+         <DialogContent className="glass-dark border-border/50 max-w-xl">
+           <DialogHeader>
+             <DialogTitle className="font-stranger text-foreground">
+               {commentsOpenFor ? `Comments - ${commentsOpenFor.title}` : "Comments"}
+             </DialogTitle>
+           </DialogHeader>
+           <div className="space-y-4">
+             <div className="max-h-64 overflow-y-auto space-y-2">
+               {comments.length === 0 ? (
+                 <p className="text-xs text-muted-foreground">No comments yet. Be the first to comment.</p>
+               ) : (
+                 comments.map((c) => (
+                   <div
+                     key={c.id}
+                     className="border border-border/30 rounded-md px-3 py-2 text-xs text-muted-foreground"
+                   >
+                     <p>{c.content}</p>
+                   </div>
+                 ))
+               )}
+             </div>
+             <div className="space-y-2">
+               <Label htmlFor="new-comment" className="text-xs">
+                 Add a comment
+               </Label>
+               <Textarea
+                 id="new-comment"
+                 value={newComment}
+                 onChange={(e) => setNewComment(e.target.value)}
+                 className="bg-background/50 border-border/50 text-xs"
+                 rows={3}
+               />
+               <Button size="sm" className="mt-2" onClick={handleAddComment}>
+                 Post Comment
+               </Button>
+             </div>
+           </div>
+         </DialogContent>
+       </Dialog>
     </div>
   );
 };

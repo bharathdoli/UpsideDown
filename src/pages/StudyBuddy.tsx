@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { SaveToggle } from "@/components/ui/save-toggle";
 
 const subjects = [
   "All Subjects",
@@ -68,7 +69,15 @@ const StudyBuddy = () => {
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [activeTab, setActiveTab] = useState("need_help");
   const [requests, setRequests] = useState<StudyRequest[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [groupMembers, setGroupMembers] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupFormData, setGroupFormData] = useState({
+    subject: "",
+    description: "",
+    max_members: 5,
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingRequest, setEditingRequest] = useState<StudyRequest | null>(null);
@@ -98,7 +107,7 @@ const StudyBuddy = () => {
 
   const fetchUserProfile = async () => {
     if (!user) return;
-    
+
     setProfileLoading(true);
     const { data, error } = await supabase
       .from("profiles")
@@ -119,8 +128,11 @@ const StudyBuddy = () => {
   useEffect(() => {
     if (college) {
       fetchRequests();
+      if (activeTab === "groups") {
+        fetchGroups();
+      }
     }
-  }, [college]);
+  }, [college, activeTab]);
 
   const handleCollegeChange = (newCollege: string) => {
     setCollege(newCollege);
@@ -128,7 +140,7 @@ const StudyBuddy = () => {
 
   const fetchRequests = async () => {
     if (!college) return;
-    
+
     setLoading(true);
     let query = supabase
       .from("study_buddy_requests")
@@ -148,6 +160,134 @@ const StudyBuddy = () => {
       setRequests(data || []);
     }
     setLoading(false);
+  };
+
+  const fetchGroups = async () => {
+    if (!college) return;
+
+    setLoading(true);
+    let query = supabase
+      .from("study_groups")
+      .select("*");
+
+    // Show groups from the selected college. If "All Colleges", show all groups.
+    if (college !== "All Colleges") {
+      query = query.eq("college", college);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Error fetching groups", description: error.message, variant: "destructive" });
+    } else {
+      setGroups(data || []);
+      // Fetch members for each group
+      if (data && data.length > 0) {
+        const groupIds = data.map(g => g.id);
+        const { data: members } = await supabase
+          .from("study_group_members")
+          .select("*")
+          .in("group_id", groupIds);
+
+        const membersMap: Record<string, any[]> = {};
+        groupIds.forEach(id => {
+          membersMap[id] = members?.filter(m => m.group_id === id) || [];
+        });
+        setGroupMembers(membersMap);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !userCollege) return;
+
+    const { data: insertedGroup, error: groupError } = await supabase.from("study_groups").insert({
+      subject: groupFormData.subject,
+      description: groupFormData.description,
+      college: userCollege,
+      created_by: user.id,
+      max_members: groupFormData.max_members,
+    }).select("id").single();
+
+    if (groupError || !insertedGroup) {
+      toast({ title: "Error creating group", description: groupError?.message || "Failed to create group", variant: "destructive" });
+      return;
+    }
+
+    // Automatically add creator as member
+    const { error: memberError } = await supabase.from("study_group_members").insert({
+      group_id: insertedGroup.id,
+      user_id: user.id,
+      role: "creator",
+    });
+
+    if (memberError) {
+      toast({ title: "Group created but failed to add you as member", description: memberError.message, variant: "destructive" });
+    } else {
+      toast({ title: "Group created!" });
+      setGroupDialogOpen(false);
+      setGroupFormData({ subject: "", description: "", max_members: 5 });
+      fetchGroups();
+    }
+  };
+
+  const handleJoinGroup = async (groupId: string) => {
+    if (!user) {
+      toast({ title: "Please login", variant: "destructive" });
+      navigate("/auth");
+      return;
+    }
+
+    // Allow joining groups from any college (Cross-college collaboration)
+
+    const group = groups.find(g => g.id === groupId);
+    const currentMembers = groupMembers[groupId] || [];
+
+    if (currentMembers.length >= (group?.max_members || 5)) {
+      toast({ title: "Group is full", variant: "destructive" });
+      return;
+    }
+
+    if (currentMembers.some(m => m.user_id === user.id)) {
+      toast({ title: "You're already in this group", variant: "destructive" });
+      return;
+    }
+
+    const { error } = await supabase.from("study_group_members").insert({
+      group_id: groupId,
+      user_id: user.id,
+      role: group?.created_by === user.id ? "creator" : "member",
+    });
+
+    if (error) {
+      toast({ title: "Error joining group", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Joined group!" });
+      fetchGroups();
+      // Auto-add creator as member if not already added
+      if (group?.created_by === user.id) {
+        // Already handled by role check above
+      }
+    }
+  };
+
+  const handleLeaveGroup = async (groupId: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("study_group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({ title: "Error leaving group", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Left group" });
+      fetchGroups();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -187,10 +327,10 @@ const StudyBuddy = () => {
       }
     } else {
       if (!userCollege || userCollege.trim() === "") {
-        toast({ 
-          title: "College not set", 
+        toast({
+          title: "College not set",
           description: "Please go to Dashboard and select your college from the dropdown",
-          variant: "destructive" 
+          variant: "destructive"
         });
         setSubmitting(false);
         return;
@@ -233,7 +373,7 @@ const StudyBuddy = () => {
 
   const handleDelete = async (requestId: string) => {
     if (!confirm("Are you sure you want to delete this request?")) return;
-    
+
     const { error } = await supabase.from("study_buddy_requests").delete().eq("id", requestId);
     if (error) {
       toast({ title: "Error deleting request", description: error.message, variant: "destructive" });
@@ -254,7 +394,7 @@ const StudyBuddy = () => {
   };
 
   const filteredRequests = requests.filter(req => {
-    const matchesSearch = 
+    const matchesSearch =
       req.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (req.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
     const matchesSubject = selectedSubject === "All Subjects" || req.subject === selectedSubject;
@@ -279,7 +419,7 @@ const StudyBuddy = () => {
   return (
     <div className="min-h-screen bg-background noise-overlay">
       <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
-      
+
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
           {/* Header */}
@@ -318,8 +458,8 @@ const StudyBuddy = () => {
               if (!open) resetForm();
             }}>
               <DialogTrigger asChild>
-                <Button 
-                  className="bg-warning hover:bg-warning/90 text-warning-foreground box-glow gap-2" 
+                <Button
+                  className="bg-warning hover:bg-warning/90 text-warning-foreground box-glow gap-2"
                   size="lg"
                   onClick={() => setFormData(prev => ({ ...prev, request_type: "need_help" }))}
                 >
@@ -372,16 +512,16 @@ const StudyBuddy = () => {
                   </div>
                   <div>
                     <Label htmlFor="description">
-                      {formData.request_type === "can_help" 
-                        ? "What topics can you help with?" 
+                      {formData.request_type === "can_help"
+                        ? "What topics can you help with?"
                         : "What do you need help with?"}
                     </Label>
                     <Textarea
                       id="description"
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder={formData.request_type === "can_help" 
-                        ? "Describe what topics you're proficient in and can teach..." 
+                      placeholder={formData.request_type === "can_help"
+                        ? "Describe what topics you're proficient in and can teach..."
                         : "Describe what topics you want to study together..."}
                       className="bg-background/50 border-border/50"
                     />
@@ -408,8 +548,8 @@ const StudyBuddy = () => {
                       />
                     </div>
                   </div>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className={`w-full ${formData.request_type === "can_help" ? "bg-green-600 hover:bg-green-700" : "bg-warning hover:bg-warning/90"}`}
                     disabled={submitting}
                   >
@@ -418,8 +558,8 @@ const StudyBuddy = () => {
                 </form>
               </DialogContent>
             </Dialog>
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white box-glow gap-2" 
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white box-glow gap-2"
               size="lg"
               onClick={() => {
                 setFormData(prev => ({ ...prev, request_type: "can_help" }));
@@ -433,7 +573,7 @@ const StudyBuddy = () => {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 glass-dark">
+            <TabsList className="grid w-full max-w-2xl mx-auto grid-cols-3 glass-dark">
               <TabsTrigger value="need_help" className="data-[state=active]:bg-warning data-[state=active]:text-warning-foreground">
                 <HelpCircle className="w-4 h-4 mr-2" />
                 Need Help ({needHelpCount})
@@ -442,176 +582,291 @@ const StudyBuddy = () => {
                 <GraduationCap className="w-4 h-4 mr-2" />
                 Can Help ({canHelpCount})
               </TabsTrigger>
+              <TabsTrigger value="groups" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Users className="w-4 h-4 mr-2" />
+                Groups ({groups.length})
+              </TabsTrigger>
             </TabsList>
+
+            <TabsContent value={activeTab} className="mt-0">
+              {/* Search & Filters */}
+              <div className="glass-dark rounded-xl p-4 mb-8 border border-border/30">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search study requests..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-background/50 border-border/50 focus:border-primary"
+                    />
+                  </div>
+                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                    <SelectTrigger className="w-full md:w-48 bg-background/50 border-border/50">
+                      <SelectValue placeholder="Subject" />
+                    </SelectTrigger>
+                    <SelectContent className="glass-dark border-border/50">
+                      {subjects.map(sub => (
+                        <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Study Requests Grid */}
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : activeTab === "groups" ? (
+                <>
+                  <div className="flex justify-end mb-4">
+                    <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button className="bg-primary hover:bg-primary/90">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Group
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="glass-dark border-border/50">
+                        <DialogHeader>
+                          <DialogTitle>Create Study Group</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleCreateGroup} className="space-y-4">
+                          <div>
+                            <Label>Subject *</Label>
+                            <Select value={groupFormData.subject} onValueChange={(v) => setGroupFormData({ ...groupFormData, subject: v })}>
+                              <SelectTrigger className="bg-background/50 border-border/50">
+                                <SelectValue placeholder="Select subject" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {subjects.filter(s => s !== "All Subjects").map(sub => (
+                                  <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Description</Label>
+                            <Textarea
+                              value={groupFormData.description}
+                              onChange={(e) => setGroupFormData({ ...groupFormData, description: e.target.value })}
+                              placeholder="Describe your study group..."
+                              className="bg-background/50 border-border/50"
+                            />
+                          </div>
+                          <div>
+                            <Label>Max Members</Label>
+                            <Input
+                              type="number"
+                              min="2"
+                              max="10"
+                              value={groupFormData.max_members}
+                              onChange={(e) => setGroupFormData({ ...groupFormData, max_members: parseInt(e.target.value) || 5 })}
+                              className="bg-background/50 border-border/50"
+                            />
+                          </div>
+                          <Button type="submit" className="w-full">Create Group</Button>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {groups.map(group => {
+                      const members = groupMembers[group.id] || [];
+                      const isMember = members.some(m => m.user_id === user?.id);
+                      const isCreator = group.created_by === user?.id;
+                      return (
+                        <div key={group.id} className="glass-dark rounded-xl p-6 border border-border/30 hover-glow">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h3 className="text-lg font-semibold text-foreground">{group.subject}</h3>
+                              {group.description && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{group.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                            <Users className="w-4 h-4" />
+                            <span>{members.length} / {group.max_members} members</span>
+                          </div>
+                          <div className="flex gap-2">
+                            {isMember ? (
+                              <>
+                                <Button
+                                  className="flex-1 bg-primary hover:bg-primary/90"
+                                  onClick={() => navigate(`/group-chat/${group.id}`)}
+                                >
+                                  Open Chat
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="flex-1"
+                                  onClick={() => handleLeaveGroup(group.id)}
+                                  disabled={isCreator}
+                                >
+                                  {isCreator ? "Creator" : "Leave"}
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                className="w-full bg-primary hover:bg-primary/90"
+                                onClick={() => handleJoinGroup(group.id)}
+                                disabled={members.length >= group.max_members}
+                              >
+                                {members.length >= group.max_members ? "Group Full" : "Join Group"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {groups.length === 0 && (
+                    <div className="text-center py-16">
+                      <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+                      <h3 className="text-xl text-foreground mb-2">No study groups yet</h3>
+                      <p className="text-muted-foreground">Create the first study group!</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredRequests.map(req => (
+                    <div
+                      key={req.id}
+                      className={`glass-dark rounded-xl p-6 border transition-all group ${req.request_type === "can_help"
+                        ? "border-green-500/30 hover:border-green-500/50"
+                        : "border-warning/30 hover:border-warning/50"
+                        }`}
+                    >
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl border ${req.request_type === "can_help"
+                          ? "bg-green-500/10 border-green-500/30"
+                          : "bg-warning/10 border-warning/30"
+                          }`}>
+                          {req.request_type === "can_help" ? "🎓" : "📚"}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between">
+                            <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                              {req.subject}
+                            </h3>
+                            <SaveToggle itemType="study_buddy" itemId={req.id} />
+                            {user?.id === req.user_id && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="glass-dark border-border/50">
+                                  <DropdownMenuItem onClick={() => handleEdit(req)}>
+                                    <Edit className="w-4 h-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDeactivate(req.id)}>
+                                    <Clock className="w-4 h-4 mr-2" /> Deactivate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDelete(req.id)} className="text-destructive">
+                                    <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {req.request_type === "can_help" ? "Ready to teach" : "Looking for study partner"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {req.description && (
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                          {req.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="outline" className={
+                          req.request_type === "can_help"
+                            ? "border-green-500/50 text-green-400"
+                            : "border-warning/50 text-warning"
+                        }>
+                          {req.subject}
+                        </Badge>
+                        <Badge className={
+                          req.request_type === "can_help"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : "bg-warning/20 text-warning border border-warning/30"
+                        }>
+                          {req.request_type === "can_help" ? "Can Help" : "Need Help"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatDate(req.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          className="w-full border-border/50 hover:bg-primary/10 hover:border-primary/50"
+                          onClick={() => {
+                            setSelectedRequest(req);
+                            setDetailsDialogOpen(true);
+                          }}
+                        >
+                          View Details
+                        </Button>
+                        <div className="flex gap-2">
+                          {req.linkedin_url && (
+                            <Button
+                              className={`flex-1 gap-1 ${req.request_type === "can_help"
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                                }`}
+                              onClick={() => window.open(req.linkedin_url!, "_blank")}
+                            >
+                              <Linkedin className="w-4 h-4" />
+                              Connect
+                            </Button>
+                          )}
+                          {req.phone_number && (
+                            <Button
+                              variant="outline"
+                              className="flex-1 gap-1 border-border/50"
+                              onClick={() => window.open(`tel:${req.phone_number}`)}
+                            >
+                              <Phone className="w-4 h-4" />
+                              Contact
+                            </Button>
+                          )}
+                          {!req.linkedin_url && !req.phone_number && (
+                            <Button
+                              className={`w-full gap-1 ${req.request_type === "can_help"
+                                ? "bg-green-600 hover:bg-green-700"
+                                : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                                }`}
+                              disabled
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              No Contact Info
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
 
-          {/* Search & Filters */}
-          <div className="glass-dark rounded-xl p-4 mb-8 border border-border/30">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  placeholder="Search study requests..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-background/50 border-border/50 focus:border-primary"
-                />
-              </div>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger className="w-full md:w-48 bg-background/50 border-border/50">
-                  <SelectValue placeholder="Subject" />
-                </SelectTrigger>
-                <SelectContent className="glass-dark border-border/50">
-                  {subjects.map(sub => (
-                    <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Study Requests Grid */}
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRequests.map(req => (
-                <div 
-                  key={req.id}
-                  className={`glass-dark rounded-xl p-6 border transition-all group ${
-                    req.request_type === "can_help" 
-                      ? "border-green-500/30 hover:border-green-500/50" 
-                      : "border-warning/30 hover:border-warning/50"
-                  }`}
-                >
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl border ${
-                      req.request_type === "can_help"
-                        ? "bg-green-500/10 border-green-500/30"
-                        : "bg-warning/10 border-warning/30"
-                    }`}>
-                      {req.request_type === "can_help" ? "🎓" : "📚"}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {req.subject}
-                        </h3>
-                        {user?.id === req.user_id && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="glass-dark border-border/50">
-                              <DropdownMenuItem onClick={() => handleEdit(req)}>
-                                <Edit className="w-4 h-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDeactivate(req.id)}>
-                                <Clock className="w-4 h-4 mr-2" /> Deactivate
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDelete(req.id)} className="text-destructive">
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {req.request_type === "can_help" ? "Ready to teach" : "Looking for study partner"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {req.description && (
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-                      {req.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center gap-2 mb-4">
-                    <Badge variant="outline" className={
-                      req.request_type === "can_help"
-                        ? "border-green-500/50 text-green-400"
-                        : "border-warning/50 text-warning"
-                    }>
-                      {req.subject}
-                    </Badge>
-                    <Badge className={
-                      req.request_type === "can_help"
-                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                        : "bg-warning/20 text-warning border border-warning/30"
-                    }>
-                      {req.request_type === "can_help" ? "Can Help" : "Need Help"}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {formatDate(req.created_at)}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Button 
-                      variant="outline"
-                      className="w-full border-border/50 hover:bg-primary/10 hover:border-primary/50"
-                      onClick={() => {
-                        setSelectedRequest(req);
-                        setDetailsDialogOpen(true);
-                      }}
-                    >
-                      View Details
-                    </Button>
-                    <div className="flex gap-2">
-                      {req.linkedin_url && (
-                        <Button 
-                          className={`flex-1 gap-1 ${
-                            req.request_type === "can_help"
-                              ? "bg-green-600 hover:bg-green-700"
-                              : "bg-warning hover:bg-warning/90 text-warning-foreground"
-                          }`}
-                          onClick={() => window.open(req.linkedin_url!, "_blank")}
-                        >
-                          <Linkedin className="w-4 h-4" />
-                          Connect
-                        </Button>
-                      )}
-                      {req.phone_number && (
-                        <Button 
-                          variant="outline"
-                          className="flex-1 gap-1 border-border/50"
-                          onClick={() => window.open(`tel:${req.phone_number}`)}
-                        >
-                          <Phone className="w-4 h-4" />
-                          Contact
-                        </Button>
-                      )}
-                      {!req.linkedin_url && !req.phone_number && (
-                        <Button 
-                          className={`w-full gap-1 ${
-                            req.request_type === "can_help"
-                              ? "bg-green-600 hover:bg-green-700"
-                              : "bg-warning hover:bg-warning/90 text-warning-foreground"
-                          }`}
-                          disabled
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          No Contact Info
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!loading && filteredRequests.length === 0 && (
+          {!loading && activeTab !== "groups" && filteredRequests.length === 0 && (
             <div className="text-center py-16">
               <Users className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
               <h3 className="text-xl text-foreground mb-2">No {activeTab === "can_help" ? "tutors" : "requests"} found</h3>
@@ -630,11 +885,10 @@ const StudyBuddy = () => {
               {selectedRequest && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl border ${
-                      selectedRequest.request_type === "can_help"
-                        ? "bg-green-500/10 border-green-500/30"
-                        : "bg-warning/10 border-warning/30"
-                    }`}>
+                    <div className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl border ${selectedRequest.request_type === "can_help"
+                      ? "bg-green-500/10 border-green-500/30"
+                      : "bg-warning/10 border-warning/30"
+                      }`}>
                       {selectedRequest.request_type === "can_help" ? "🎓" : "📚"}
                     </div>
                     <div>
@@ -662,7 +916,7 @@ const StudyBuddy = () => {
                     <h4 className="font-semibold text-foreground mb-3">Contact Information</h4>
                     <div className="space-y-2">
                       {selectedRequest.linkedin_url && (
-                        <a 
+                        <a
                           href={selectedRequest.linkedin_url}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -673,7 +927,7 @@ const StudyBuddy = () => {
                         </a>
                       )}
                       {selectedRequest.phone_number && (
-                        <a 
+                        <a
                           href={`tel:${selectedRequest.phone_number}`}
                           className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
                         >
@@ -696,12 +950,11 @@ const StudyBuddy = () => {
 
                   <div className="flex gap-2">
                     {selectedRequest.linkedin_url && (
-                      <Button 
-                        className={`flex-1 ${
-                          selectedRequest.request_type === "can_help"
-                            ? "bg-green-600 hover:bg-green-700"
-                            : "bg-warning hover:bg-warning/90 text-warning-foreground"
-                        }`}
+                      <Button
+                        className={`flex-1 ${selectedRequest.request_type === "can_help"
+                          ? "bg-green-600 hover:bg-green-700"
+                          : "bg-warning hover:bg-warning/90 text-warning-foreground"
+                          }`}
                         onClick={() => window.open(selectedRequest.linkedin_url!, "_blank")}
                       >
                         <Linkedin className="w-4 h-4 mr-2" />
@@ -709,7 +962,7 @@ const StudyBuddy = () => {
                       </Button>
                     )}
                     {selectedRequest.phone_number && (
-                      <Button 
+                      <Button
                         variant="outline"
                         className="flex-1 border-border/50"
                         onClick={() => window.open(`tel:${selectedRequest.phone_number}`)}
