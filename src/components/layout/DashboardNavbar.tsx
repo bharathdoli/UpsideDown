@@ -105,15 +105,8 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
     <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-border/30">
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between h-14 sm:h-16">
-          {/* Left: Logo and Back Button */}
+          {/* Left: Logo */}
           <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1 sm:gap-2 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4 hidden sm:block" />
-              <span className="text-xs sm:text-sm hidden sm:block">Dashboard</span>
-            </Link>
 
             <Link to="/dashboard" className="flex items-center gap-1 sm:gap-2 group min-w-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all flex-shrink-0">
