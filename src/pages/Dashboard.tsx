@@ -22,7 +22,10 @@ import {
   MessageSquare,
   TrendingUp,
   FileText,
-  Star
+  Star,
+  Menu,
+  Bookmark,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +35,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { toast } from "@/hooks/use-toast";
 import { getCollegeKey, prettifyCollegeName } from "@/lib/college";
 import { Badge } from "@/components/ui/badge";
@@ -106,7 +117,7 @@ const features = [
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [college, setCollege] = useState<string | null>(null);
+  const [college, setCollege] = useState<string | null>("All Colleges");
   const [branch, setBranch] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
   const [availableColleges, setAvailableColleges] = useState<string[]>([]);
@@ -135,7 +146,7 @@ const Dashboard = () => {
 
   const fetchInitialData = async () => {
     if (!user) return;
-
+    
     // Fetch current user's college first (most important)
     const { data: profile } = await supabase
       .from("profiles")
@@ -143,9 +154,8 @@ const Dashboard = () => {
       .eq("user_id", user.id)
       .single();
 
-    if (profile?.college) {
-      setCollege(profile.college);
-    }
+    // Note: We keep "All Colleges" as default for viewing
+    // The user's college from profile is used for content creation, not filtering
     if (profile?.branch) {
       setBranch(profile.branch);
     }
@@ -165,7 +175,7 @@ const Dashboard = () => {
         description: error.message,
         variant: "destructive",
       });
-      setLoading(false);
+    setLoading(false);
       return;
     }
 
@@ -304,10 +314,27 @@ const Dashboard = () => {
   // Add new state variables
   const [myGroups, setMyGroups] = useState<any[]>([]);
   const [myListings, setMyListings] = useState<any[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
+    try {
+      // Sign out using AuthContext method
+      await signOut();
+      // Navigate to home page
+      navigate("/");
+      // Show success message
+      toast({
+        title: "Signed out successfully",
+        description: "You have been logged out.",
+      });
+    } catch (error: any) {
+      console.error("Sign out error:", error);
+      toast({
+        title: "Error signing out",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCollegeChange = (newCollege: string) => {
@@ -323,8 +350,13 @@ const Dashboard = () => {
   };
 
   // Don't block rendering - show page immediately
+  // The useEffect above will handle navigation if user is null
   if (!user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -332,30 +364,38 @@ const Dashboard = () => {
       {/* Background Effects */}
       <div className="fixed inset-0 upside-down-bg pointer-events-none" />
       <div className="fixed inset-0 portal-bg pointer-events-none" />
-
+      
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-border/30">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/dashboard" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all">
-                <span className="text-primary font-stranger text-sm">TU</span>
+        <div className="container mx-auto px-2 sm:px-4">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            {/* Left: Logo */}
+            <Link to="/dashboard" className="flex items-center gap-1 sm:gap-2 group min-w-0 flex-1">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all flex-shrink-0">
+                <span className="text-primary font-stranger text-xs sm:text-sm">TU</span>
               </div>
-              <span className="font-stranger text-lg text-foreground flicker hidden sm:block">
+              <span className="font-stranger text-base sm:text-lg text-foreground flicker hidden md:block">
                 The Upside Down
               </span>
             </Link>
 
-            <div className="flex items-center gap-4">
-              {/* College Selector built from actual data, normalized */}
+            {/* Desktop Menu */}
+            <div className="hidden lg:flex items-center gap-3">
+              {/* College Selector */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="border-border/50 text-sm">
-                    {college || "Select College"}
+                  <Button variant="outline" className="border-border/50 text-sm px-3">
+                    {college || "All Colleges"}
                     <ChevronDown className="ml-2 w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="glass-dark border-border/50">
+                <DropdownMenuContent className="glass-dark border-border/50 max-h-[60vh] overflow-y-auto">
+                  <DropdownMenuItem
+                    onClick={() => handleCollegeChange("All Colleges")}
+                    className="hover:bg-primary/10 cursor-pointer font-semibold"
+                  >
+                    All Colleges
+                  </DropdownMenuItem>
                   {availableColleges.length === 0 && (
                     <DropdownMenuItem className="text-muted-foreground text-xs">
                       No colleges yet – add yours in your profile.
@@ -373,20 +413,140 @@ const Dashboard = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              <NotificationBell />
+              <Link
+                to="/saved"
+                className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Bookmark className="w-4 h-4 mr-1" />
+                <span className="hidden xl:inline">Saved</span>
+              </Link>
+              <Link
+                to="/messages"
+                className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <MessageCircle className="w-4 h-4 mr-1" />
+                <span className="hidden xl:inline">Messages</span>
+              </Link>
+              <Link
+                to="/leaderboard"
+                className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Trophy className="w-4 h-4 mr-1" />
+                <span className="hidden xl:inline">Leaderboard</span>
+              </Link>
               <ThemeToggle />
-
-              <span className="text-muted-foreground text-sm hidden md:block">
+              <span className="text-muted-foreground text-xs max-w-[100px] truncate">
                 {fullName || user?.email?.split("@")[0]}
               </span>
-
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
                 className="text-muted-foreground hover:text-foreground"
+                title="Sign Out"
               >
                 <LogOut className="w-4 h-4" />
               </Button>
+            </div>
+
+            {/* Mobile Menu */}
+            <div className="flex lg:hidden items-center gap-1 sm:gap-2">
+              {/* College Selector - Mobile */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-border/50 text-xs px-2 h-8">
+                    <span className="max-w-[60px] sm:max-w-[80px] truncate">{college || "All"}</span>
+                    <ChevronDown className="ml-1 w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="glass-dark border-border/50 max-h-[60vh] overflow-y-auto">
+                  <DropdownMenuItem
+                    onClick={() => handleCollegeChange("All Colleges")}
+                    className="hover:bg-primary/10 cursor-pointer font-semibold"
+                  >
+                    All Colleges
+                  </DropdownMenuItem>
+                  {availableColleges.map((c) => (
+                    <DropdownMenuItem
+                      key={c}
+                      onClick={() => handleCollegeChange(c)}
+                      className="hover:bg-primary/10 cursor-pointer text-sm"
+                    >
+                      {c}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <NotificationBell />
+              <ThemeToggle />
+
+              {/* Mobile Menu Sheet */}
+              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="glass-dark border-border/50 w-[280px]">
+                  <SheetHeader>
+                    <SheetTitle className="text-left">Menu</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-4">
+                    {college && (
+                      <div className="pb-4 border-b border-border/30">
+                        <p className="text-xs text-muted-foreground mb-1">Viewing</p>
+                        <p className="text-sm font-semibold text-primary">{college}</p>
+                      </div>
+                    )}
+                    {fullName && (
+                      <div className="pb-4 border-b border-border/30">
+                        <p className="text-xs text-muted-foreground mb-1">Welcome</p>
+                        <p className="text-sm font-semibold text-foreground">{fullName}</p>
+                      </div>
+                    )}
+                    <Link
+                      to="/saved"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      <Bookmark className="w-5 h-5" />
+                      Saved Items
+                    </Link>
+                    <Link
+                      to="/messages"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      Messages
+                    </Link>
+                    <Link
+                      to="/leaderboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                    >
+                      <Trophy className="w-5 h-5" />
+                      Leaderboard
+                    </Link>
+                    <div className="pt-4 border-t border-border/30">
+                      <p className="text-xs text-muted-foreground mb-2">{user?.email}</p>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          handleSignOut();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Sign Out
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
         </div>
@@ -416,9 +576,9 @@ const Dashboard = () => {
                         Campus <span className="text-primary text-glow">Dashboard</span>
                       </>
                     )}
-                  </h1>
+            </h1>
                   {college && branch && (
-                    <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-lg">
                       Studying <span className="text-foreground font-semibold">{branch}</span> at{" "}
                       <span className="text-primary font-semibold">{college}</span>
                     </p>
@@ -517,61 +677,61 @@ const Dashboard = () => {
               </h2>
               <p className="text-muted-foreground text-lg">
                 Everything you need to navigate campus life, all in one place.
-              </p>
-            </div>
+            </p>
+          </div>
           </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column: Features Grid */}
             <div className="lg:col-span-2 space-y-8">
-              {!college && (
+          {!college && (
                 <Card className="glass-dark border-primary/30 text-center mb-8">
-                  <CardContent className="pt-6">
-                    <p className="text-muted-foreground mb-4">
-                      Please select your college to access content specific to your campus.
-                    </p>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="bg-primary hover:bg-primary/90">
-                          Select Your College
-                          <ChevronDown className="ml-2 w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="glass-dark border-border/50">
+                <CardContent className="pt-6">
+                  <p className="text-muted-foreground mb-4">
+                    Please select your college to access content specific to your campus.
+                  </p>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Select Your College
+                        <ChevronDown className="ml-2 w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="glass-dark border-border/50">
                         {availableColleges.map((c) => (
-                          <DropdownMenuItem
-                            key={c}
-                            onClick={() => handleCollegeChange(c)}
-                            className="hover:bg-primary/10 cursor-pointer"
-                          >
-                            {c}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </CardContent>
-                </Card>
-              )}
+                        <DropdownMenuItem
+                          key={c}
+                          onClick={() => handleCollegeChange(c)}
+                          className="hover:bg-primary/10 cursor-pointer"
+                        >
+                          {c}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardContent>
+              </Card>
+          )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                {features.map((feature, index) => (
-                  <Link key={index} to={feature.path}>
-                    <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 group h-full cursor-pointer overflow-hidden">
-                      <CardHeader>
-                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                          <feature.icon className="w-7 h-7 text-white" />
-                        </div>
-                        <CardTitle className="font-stranger text-xl text-foreground group-hover:text-primary transition-colors">
-                          {feature.title}
-                        </CardTitle>
-                        <CardDescription className="text-muted-foreground">
-                          {feature.description}
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
+            {features.map((feature, index) => (
+              <Link key={index} to={feature.path}>
+                <Card className="glass-dark border-border/30 hover-glow transition-all duration-300 group h-full cursor-pointer overflow-hidden">
+                  <CardHeader>
+                    <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                      <feature.icon className="w-7 h-7 text-white" />
+                    </div>
+                    <CardTitle className="font-stranger text-xl text-foreground group-hover:text-primary transition-colors">
+                      {feature.title}
+                    </CardTitle>
+                    <CardDescription className="text-muted-foreground">
+                      {feature.description}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            ))}
+          </div>
             </div>
 
             {/* Right Column: Widgets */}
