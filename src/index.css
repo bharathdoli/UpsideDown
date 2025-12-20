@@ -4,6 +4,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Optimize for faster navigation */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Optimize image loading */
+img {
+  content-visibility: auto;
+}
+
 @layer base {
   :root {
     --background: 0 0% 4%;

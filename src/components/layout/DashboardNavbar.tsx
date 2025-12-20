@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LogOut, ChevronDown, ArrowLeft, Bell, Bookmark, MessageCircle, Trophy } from "lucide-react";
+import { LogOut, ChevronDown, ArrowLeft, Bell, Bookmark, MessageCircle, Trophy, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,6 +8,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -25,6 +32,7 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
   const navigate = useNavigate();
   const [availableColleges, setAvailableColleges] = useState<string[]>([]);
   const [userCollege, setUserCollege] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     // Fetch user's college from profile (set during signup, cannot be changed)
@@ -95,43 +103,43 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-border/30">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          {/* Back to Dashboard */}
-          <div className="flex items-center gap-4">
+      <div className="container mx-auto px-2 sm:px-4">
+        <div className="flex items-center justify-between h-14 sm:h-16">
+          {/* Left: Logo and Back Button */}
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
             <Link
               to="/dashboard"
-              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+              className="flex items-center gap-1 sm:gap-2 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm hidden sm:block">Dashboard</span>
+              <ArrowLeft className="w-4 h-4 hidden sm:block" />
+              <span className="text-xs sm:text-sm hidden sm:block">Dashboard</span>
             </Link>
 
-            <Link to="/dashboard" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all">
-                <span className="text-primary font-stranger text-sm">TU</span>
+            <Link to="/dashboard" className="flex items-center gap-1 sm:gap-2 group min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center group-hover:animate-pulse-glow transition-all flex-shrink-0">
+                <span className="text-primary font-stranger text-xs sm:text-sm">TU</span>
               </div>
-              <span className="font-stranger text-lg text-foreground flicker hidden md:block">
+              <span className="font-stranger text-base sm:text-lg text-foreground flicker hidden md:block">
                 The Upside Down
               </span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* College Selector - ONLY for viewing/filtering content */}
-            {/* User's college from signup is FINAL and cannot be changed */}
-            <div className="flex items-center gap-1 md:gap-2">
+          {/* Right: Desktop Menu */}
+          <div className="hidden lg:flex items-center gap-3">
+            {/* College Selector */}
+            <div className="flex items-center gap-2">
               {userCollege && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap hidden lg:inline">
+                <span className="text-xs text-muted-foreground whitespace-nowrap hidden xl:inline">
                   Your College: <span className="text-primary font-semibold">{userCollege}</span>
                 </span>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="border-border/50 text-xs md:text-sm px-2 md:px-3">
-                    <span className="hidden sm:inline">View: </span>
-                    <span className="max-w-[100px] md:max-w-none truncate">{college || "All"}</span>
-                    <ChevronDown className="ml-1 md:ml-2 w-3 h-3 md:w-4 md:h-4" />
+                  <Button variant="outline" className="border-border/50 text-sm px-3">
+                    <span>View: </span>
+                    <span className="max-w-[120px] truncate">{college || "All"}</span>
+                    <ChevronDown className="ml-2 w-4 h-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="glass-dark border-border/50">
@@ -165,31 +173,29 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
             <NotificationBell />
             <Link
               to="/saved"
-              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <Bookmark className="w-4 h-4 mr-1" />
               <span className="hidden xl:inline">Saved</span>
             </Link>
             <Link
               to="/messages"
-              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <MessageCircle className="w-4 h-4 mr-1" />
               <span className="hidden xl:inline">Messages</span>
             </Link>
             <Link
               to="/leaderboard"
-              className="hidden lg:inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
+              className="inline-flex items-center text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <Trophy className="w-4 h-4 mr-1" />
               <span className="hidden xl:inline">Leaderboard</span>
             </Link>
             <ThemeToggle />
-
-            <span className="text-muted-foreground text-xs md:text-sm hidden lg:block max-w-[80px] truncate">
+            <span className="text-muted-foreground text-xs max-w-[80px] truncate">
               {user?.email?.split("@")[0]}
             </span>
-
             <Button
               variant="ghost"
               size="sm"
@@ -198,6 +204,102 @@ const DashboardNavbar = ({ college, onCollegeChange }: DashboardNavbarProps) => 
             >
               <LogOut className="w-4 h-4" />
             </Button>
+          </div>
+
+          {/* Mobile Menu */}
+          <div className="flex lg:hidden items-center gap-1 sm:gap-2">
+            {/* College Selector - Mobile */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="border-border/50 text-xs px-2 h-8">
+                  <span className="max-w-[60px] sm:max-w-[80px] truncate">{college || "All"}</span>
+                  <ChevronDown className="ml-1 w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="glass-dark border-border/50 max-h-[60vh] overflow-y-auto">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/30">
+                  Filter by college
+                </div>
+                <DropdownMenuItem
+                  onClick={() => handleCollegeChange("All Colleges")}
+                  className="hover:bg-primary/10 cursor-pointer font-semibold"
+                >
+                  All Colleges
+                </DropdownMenuItem>
+                {availableColleges.map((c) => (
+                  <DropdownMenuItem
+                    key={c}
+                    onClick={() => handleCollegeChange(c)}
+                    className="hover:bg-primary/10 cursor-pointer text-sm"
+                  >
+                    {c}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <NotificationBell />
+            <ThemeToggle />
+
+            {/* Mobile Menu Sheet */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="glass-dark border-border/50 w-[280px]">
+                <SheetHeader>
+                  <SheetTitle className="text-left">Menu</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 space-y-4">
+                  {userCollege && (
+                    <div className="pb-4 border-b border-border/30">
+                      <p className="text-xs text-muted-foreground mb-1">Your College</p>
+                      <p className="text-sm font-semibold text-primary">{userCollege}</p>
+                    </div>
+                  )}
+                  <Link
+                    to="/saved"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    <Bookmark className="w-5 h-5" />
+                    Saved Items
+                  </Link>
+                  <Link
+                    to="/messages"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    Messages
+                  </Link>
+                  <Link
+                    to="/leaderboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 text-sm text-foreground hover:text-primary transition-colors py-2"
+                  >
+                    <Trophy className="w-5 h-5" />
+                    Leaderboard
+                  </Link>
+                  <div className="pt-4 border-t border-border/30">
+                    <p className="text-xs text-muted-foreground mb-2">{user?.email}</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="w-full"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </Button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>

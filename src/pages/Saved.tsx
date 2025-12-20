@@ -175,7 +175,7 @@ const Saved = () => {
   return (
     <div className="min-h-screen bg-background noise">
       <DashboardNavbar college={college} onCollegeChange={handleCollegeChange} />
-      <main className="pt-24 pb-16">
+      <main className="pt-20 sm:pt-24 pb-16">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <h1 className="font-stranger text-4xl md:text-5xl text-foreground mb-4">

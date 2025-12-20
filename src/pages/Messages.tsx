@@ -104,7 +104,7 @@ const Messages = () => {
         <div className="min-h-screen bg-background noise-overlay">
             <DashboardNavbar college={null} onCollegeChange={() => { }} />
 
-            <main className="pt-24 pb-16">
+            <main className="pt-20 sm:pt-24 pb-16">
                 <div className="container mx-auto px-4 max-w-4xl">
                     <div className="flex items-center gap-3 mb-8">
                         <MessageCircle className="w-8 h-8 text-primary" />

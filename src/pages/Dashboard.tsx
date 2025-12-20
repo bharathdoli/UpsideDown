@@ -128,13 +128,15 @@ const Dashboard = () => {
       navigate("/auth");
       return;
     }
+    // Set loading to false immediately to show page, then fetch data in background
+    setLoading(false);
     void fetchInitialData();
   }, [user, navigate]);
 
   const fetchInitialData = async () => {
     if (!user) return;
 
-    // Fetch current user's college
+    // Fetch current user's college first (most important)
     const { data: profile } = await supabase
       .from("profiles")
       .select("college, branch, full_name")
@@ -295,8 +297,6 @@ const Dashboard = () => {
       .order("created_at", { ascending: false })
       .limit(3);
 
-    setLoading(false);
-
     setMyGroups(myGroups?.map((g: any) => g.group) || []);
     setMyListings(myListings || []);
   };
@@ -322,12 +322,9 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+  // Don't block rendering - show page immediately
+  if (!user) {
+    return null;
   }
 
   return (
@@ -396,7 +393,7 @@ const Dashboard = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="pt-24 pb-16 relative z-10">
+      <main className="pt-20 sm:pt-24 pb-16 relative z-10">
         <div className="container mx-auto px-4">
           {/* Hero Section */}
           <section className="relative mb-16 overflow-hidden">

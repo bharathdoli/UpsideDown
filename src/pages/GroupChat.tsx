@@ -242,7 +242,7 @@ const GroupChat = () => {
   return (
     <div className="min-h-screen bg-background noise">
       <DashboardNavbar />
-      <main className="pt-24 pb-16">
+      <main className="pt-20 sm:pt-24 pb-16">
         <div className="container mx-auto px-4 max-w-4xl">
           <Card className="glass-dark border-border/30">
             <CardHeader className="border-b border-border/30">
